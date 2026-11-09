@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
 <style id="page-style">
-/* 기간과 기준일 → 핵심 이슈 → 회사 선택 → 회사별 기사 목록 */
+/* 기간과 기준일 → 핵심 이슈 → 전체/회사별 보기 → 최신순 기사 목록 */
 :root {
   --bg: #f6f7f9;
   --surface: #ffffff;
@@ -98,12 +98,19 @@ h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em; text-
 .highlights .when { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-right: 8px; font-variant-numeric: tabular-nums; }
 
 .picker { display: grid; gap: 14px; }
+.view-switch { display: flex; flex-wrap: wrap; gap: 8px; }
+.view-btn {
+  min-height: 44px; padding: 8px 16px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+  font: inherit; font-weight: 600; cursor: pointer;
+}
+.view-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .group { display: grid; gap: 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   font: inherit; font-size: 14px; cursor: pointer;
   display: inline-flex; align-items: baseline; gap: 8px;
-  padding: 7px 12px; border-radius: 999px;
+  min-height: 44px; padding: 7px 12px; border-radius: 999px;
   border: 1px solid var(--line); background: var(--surface); color: var(--fg);
 }
 .chip .n { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
@@ -118,7 +125,7 @@ h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em; text-
 .outlet-score { margin: 0; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
 .filters { display: flex; flex-wrap: wrap; gap: 6px; }
 .filter {
-  font: inherit; font-size: 13px; cursor: pointer; padding: 4px 10px; border-radius: 6px;
+  min-height: 44px; font: inherit; font-size: 13px; cursor: pointer; padding: 6px 12px; border-radius: 6px;
   border: 1px solid var(--line); background: transparent; color: var(--muted);
 }
 .filter[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
@@ -141,6 +148,7 @@ h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.01em; text-
 .imp.high::before { background: var(--high); }
 .imp.mid::before { background: var(--mid); }
 .cat { padding: 1px 7px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
+.company-tag { padding: 1px 7px; border-radius: 4px; border: 1px solid var(--line); color: var(--fg); font-weight: 600; }
 .auto { padding: 1px 7px; border-radius: 4px; border: 1px solid var(--line); }
 .also a { color: var(--muted); }
 .none { padding: 28px 16px; text-align: center; color: var(--muted); }
@@ -156,6 +164,7 @@ footer { color: var(--muted); font-size: 12px; }
 
 </head>
 <body>
+<aside style="padding:12px 20px;text-align:center;font:14px system-ui;background:#e6ecfb;color:#173b9c">정기 업데이트: 매일 오전 8시 · 낮 12시 · 오후 5시 30분 (한국 시간) · 수집과 검증 후 반영</aside>
 <div class="wrap" id="app-shell">
   <header>
     <span class="label">국내 카드사·간편결제사 뉴스</span>
@@ -175,21 +184,31 @@ footer { color: var(--muted); font-size: 12px; }
     <ol id="highlights"></ol>
   </section>
 
-  <nav class="picker" aria-label="회사 선택">
+  <section class="picker" aria-labelledby="view-title">
+    <span class="label" id="view-title">뉴스 보기</span>
+    <div class="view-switch" id="view-switch" role="group" aria-label="뉴스 보기 방식">
+      <button class="view-btn" id="view-all" type="button" aria-pressed="true">전체 원문</button>
+      <button class="view-btn" id="view-events" type="button" aria-pressed="false">사건별 묶음</button>
+      <button class="view-btn" id="view-company" type="button" aria-pressed="false">회사별 보기</button>
+    </div>
+    <p class="status" id="view-help">모든 회사의 수집 기사를 최신 날짜와 시각 순으로 보여줍니다.</p>
+  </section>
+
+  <nav class="picker" id="company-picker" aria-label="회사 선택" hidden>
     <div class="group"><span class="label">카드사</span><div class="chips" id="chips-card"></div></div>
     <div class="group"><span class="label">간편결제</span><div class="chips" id="chips-pay"></div></div>
   </nav>
 
   <details class="coverage-details">
     <summary>회사별 매체 커버리지 점수 보기</summary>
-    <p class="status">결과에 실린 대표 기사와 같은 주제의 관련 보도에 포함된 우선 언론사 50곳 중 서로 다른 매체 한 곳당 1점입니다. 10점 만점이며 목표는 회사별 최소 9곳입니다.</p>
+    <p class="status">결과에 실린 대표 기사와 같은 주제의 관련 보도에 포함된 우선 언론사 50곳 중 서로 다른 매체 한 곳당 1점입니다. 10점 만점이며 이번 재수집 기준은 회사별 최소 6곳입니다.</p>
     <div id="scores"></div>
   </details>
 
-  <section class="panel" aria-live="polite">
+  <section class="panel">
     <div class="panel-head">
       <h2 id="co-name"></h2>
-      <span class="mono label" id="co-count"></span>
+      <span class="mono label" id="co-count" role="status" aria-live="polite"></span>
     </div>
     <p class="digest" id="co-digest"></p>
     <p class="outlet-score" id="co-outlet-score"></p>
@@ -202,1214 +221,7 @@ footer { color: var(--muted); font-size: 12px; }
 
 <!-- 스킬이 검증된 데이터로 이 블록을 교체한다. -->
 <script id="news-data" type="application/json">
-{
-  "title": "카드·간편결제 뉴스",
-  "period": {
-    "from": "2026-10-10",
-    "to": "2026-11-09"
-  },
-  "generatedAt": "2026-11-09",
-  "limitPerCompany": 30,
-  "priorityOutlets": [
-    "매일경제",
-    "조선일보",
-    "중앙일보",
-    "동아일보",
-    "한겨레",
-    "KBS",
-    "연합뉴스",
-    "연합인포맥스",
-    "경향신문",
-    "한국일보",
-    "국민일보",
-    "서울신문",
-    "세계일보",
-    "문화일보",
-    "뉴시스",
-    "뉴스1",
-    "MBC",
-    "SBS Biz",
-    "YTN",
-    "한국경제TV",
-    "MTN 머니투데이방송",
-    "메트로신문",
-    "한국경제",
-    "서울경제",
-    "머니투데이",
-    "파이낸셜뉴스",
-    "헤럴드경제",
-    "아시아경제",
-    "이데일리",
-    "아주경제",
-    "이투데이",
-    "뉴스핌",
-    "데일리안",
-    "글로벌이코노믹",
-    "뉴데일리경제",
-    "전자신문",
-    "디지털타임스",
-    "지디넷코리아",
-    "아이뉴스24",
-    "블로터",
-    "비즈니스포스트",
-    "서울파이낸스",
-    "대한금융신문",
-    "한국금융신문",
-    "더벨",
-    "딜사이트",
-    "비즈니스워치",
-    "파이낸셜포스트",
-    "더밸류뉴스",
-    "CEO스코어데일리"
-  ],
-  "coverage": "최근 1개월 국내 카드사 9곳과 간편결제 서비스 5곳의 확인된 보도. 매체별 전수조사는 아니며 이전 검증 기사도 재사용했습니다.",
-  "coverageOverview": [
-    {
-      "title": "검색 기간과 대상",
-      "text": "2026년 10월 10일~11월 9일(한국 시간). 카드사 9곳과 간편결제 서비스 5곳을 검색했습니다."
-    },
-    {
-      "title": "이번에 매체를 지정한 검색",
-      "text": "아래 13곳을 하나 이상의 회사에 대해 지정 검색했습니다. 모든 회사와 각 매체를 교차 검색한 것은 아니며, 일부 검색 결과는 잘려 전부 검토하지 못했습니다.",
-      "tags": [
-        "뉴스핌",
-        "뉴시스",
-        "이데일리",
-        "이투데이",
-        "파이낸셜뉴스",
-        "아주경제",
-        "서울경제",
-        "한국경제",
-        "머니투데이",
-        "아시아경제",
-        "뉴스1",
-        "한국금융신문",
-        "전자신문"
-      ]
-    },
-    {
-      "title": "기사 출처로 확인된 언론사",
-      "text": "결과에 포함된 원 언론사입니다. 출처로 확인된 사실이 해당 매체의 전체 기사를 검색했다는 뜻은 아닙니다.",
-      "tags": [
-        "YTN",
-        "경향신문",
-        "뉴데일리경제",
-        "뉴스1",
-        "뉴스핌",
-        "뉴시스",
-        "더팩트",
-        "로이슈",
-        "머니투데이",
-        "비즈니스워치",
-        "아시아경제",
-        "아주경제",
-        "연합뉴스",
-        "이뉴스투데이",
-        "이데일리",
-        "이투데이",
-        "전자신문",
-        "조선비즈",
-        "한국금융신문",
-        "헤럴드경제"
-      ]
-    },
-    {
-      "title": "회사군별 검색",
-      "items": [
-        "삼성·신한·KB·롯데: 9개 매체를 회사별로 지정 검색하고 비제한 검색을 추가했습니다.",
-        "우리·하나·BC·NH·현대: 12개 매체를 회사별 일부 조합으로 검색했습니다.",
-        "네이버·카카오·토스·애플·삼성페이: 서비스명 비제한 검색 및 이전 확인 기사 재사용."
-      ]
-    },
-    {
-      "title": "검색 한계",
-      "items": [
-        "우선 언론사 50곳 전체와 모든 국내 언론사를 회사별로 전수 검색하지 않았습니다.",
-        "검색 결과 일부가 잘렸고 색인 누락 또는 원문 접근 제한이 있을 수 있습니다.",
-        "이전 조사에서 검증한 기사를 재사용했으며 모든 원문을 이번에 다시 열지는 못했습니다.",
-        "9점 미달은 해당 보도가 없다는 뜻이 아닙니다."
-      ]
-    },
-    {
-      "title": "매체 점수 기준",
-      "text": "표에 실린 대표 기사와 동일 사건 관련 보도의 서로 다른 우선 언론사 수를 1곳당 1점으로 계산하며 최대 10점입니다. 목표는 회사당 9곳입니다."
-    }
-  ],
-  "coverageDetails": [
-    {
-      "title": "삼성·신한·KB·롯데 검색 기록",
-      "text": "2026-11-09 추가 검색: 4개 회사별 “회사명 2026년 10월 11월”을 뉴스핌(newspim.com), 뉴시스(newsis.com), 이데일리(edaily.co.kr), 이투데이(etoday.co.kr), 파이낸셜뉴스(fnnews.com), 아주경제(ajunews.com), 서울경제(sedaily.com), 한국경제(hankyung.com), 머니투데이(mt.co.kr) 9개 도메인을 각각 지정해 검색(36개 회사·매체 쿼리)했다. 반환 결과는 일부 출력이 잘려 모두 검토하지 못했으므로 전수조사가 아니다. 4개 회사별 “회사명 2026년 11월 8일 뉴스”와 “회사명 2026-11-09”를 제한 없이 추가 검색했다. 기간 내 신문 기사 추가 확인이 충분하지 않아 11월 7일 검증한 자료를 재사용하고 게재일이 10월 10일 이전인 기사·관련 보도는 제외했다. 일부 이전 원문은 이번 실행에서 재열람하지 못했으며 검색 엔진 색인 누락과 접근 제한 가능성이 있다. 검색한 9개 매체는 기사 출처를 확보한 매체의 수와 다르다. 11월 9일 오후 추가: 카드사 9곳 회사명 비제한 검색 및 삼성·신한·NH·현대 정확일 검색. 조선비즈의 우리·신한 개인정보 유출 제재심 준비 보도를 확인했다."
-    },
-    {
-      "title": "우리·하나·BC·NH·현대 검색 기록",
-      "text": "2026-11-09 신규 지정 검색: 우리카드 2026 11월 site:newspim.com; 하나카드 2026 11월 site:edaily.co.kr; BC카드 2026 11월 site:newsis.com; NH농협카드 2026 11월 site:etoday.co.kr; 현대카드 2026 11월 site:ajunews.com; 우리카드 2026 10월 site:fnnews.com; 하나카드 2026 10월 site:asiae.co.kr; NH농협카드 2026 10월 site:news1.kr; BC카드 2026 11월 site:mt.co.kr; 하나카드 2026 10월 site:fntimes.com; 현대카드 2026 10월 site:sedaily.com; 우리카드 2026 10월 site:etnews.com. 추가 한국금융신문 하나 AI·스테이블코인 제목 및 현대·NH 뉴스핌 검색. 검색 지정 매체 12곳: 뉴스핌·이데일리·뉴시스·이투데이·아주경제·파이낸셜뉴스·아시아경제·뉴스1·머니투데이·한국금융신문·서울경제·전자신문. 모든 회사마다 모든 매체를 각각 검색하지는 않았고 검색엔진 색인 범위도 불명확하다. 기사 결과에는 11월7일 기준 검증 자료를 재사용하고 기간 밖을 제외했다. 뉴시스 BC 11/5 기사와 한국금융신문 하나 10/30 기사 추가. 후보 수·매체별 미노출 문서 수는 집계하지 않았으며 국내 언론사 전수조사가 아니다. 11월 9일 오후 추가: NH농협카드 관련 이뉴스투데이·더팩트 원문 날짜와 기사를 확인했다."
-    },
-    {
-      "title": "간편결제 검색 기록",
-      "text": "2026-11-09 검색: 네이버페이 2026 11월 뉴스; 카카오페이 2026 11월 뉴스; 토스페이 2026 11월 뉴스; 애플페이 삼성페이 2026 11월 국내 결제. 11월 8~9일 신규 관련 보도는 해당 검색에서 확인하지 못함. 11월 3일 카카오페이 3분기 실적 연합뉴스 원문을 추가 확인. 2026-10-10~11-09 기사 사용. 이전 11월 7일 검색에서 관련 보도 원문 발행일을 확인한 자료를 재사용. 매체 50곳별 전수 검색은 하지 못했으며 검색 색인 누락 가능성과 미검색 매체가 있어 9개 미달은 보도 부재를 뜻하지 않음. 이전 조사 기록: 2026-11-07: 비제한 검색어 네이버페이 2026년 11월 7일 뉴스, 카카오페이 2026년 11월 7일 뉴스, 토스페이 2026년 11월 뉴스 결제, 애플페이 삼성페이 2026년 11월 국내 결제, 각 서비스명과 2026년 10~11월 결제 뉴스. 기존 2026-11-06 diverse_pay.json의 검증된 기사·관련보도를 재사용하고 2026-10-08 이전 게재 기사를 제외. 11월 7일 신규 관련 언론기사는 이 검색에서 확인하지 못함. 원문 재열람: 이투데이 카카오페이 3분기 원문 수치 확인, 삼성월렛 연합뉴스 확인, Npay 서귀포 이데일리 원문 재접근 제한. 기존 확인 사실과 이번 재접근 결과를 구분해야 함. 우선 매체 50곳별·5개 서비스 교차검색과 모든 기사·관련 보도 원문 재검증은 미실시. 언론사별 정확한 검색 후보 수 미기록, 색인 한계 존재.\n이전 검색범위(11/06): 이번 추가 웹검색: \"네이버페이 2026 10월 11월 site:newspim.com\", \"카카오페이 2026 10월 11월 site:newspim.com\", \"토스페이 2026 10월 11월 site:newspim.com\", \"애플페이 삼성페이 2026 10월 국내 결제\", \"카카오페이 2026-10 site:edaily.co.kr\", \"토스페이 2026-10 site:etoday.co.kr\", \"애플페이 2026-10 site:edaily.co.kr\", \"삼성월렛 2026-10 결제 site:newsis.com\", \"토스페이 2026 10월 site:newspim.com 결제\", \"토스페이 2026 10월 site:newsis.com 결제\", \"애플페이 2026 10월 site:newsis.com\", \"애플페이 2026 11월 site:etoday.co.kr\". 매체 지정: 뉴스핌·이데일리·이투데이·뉴시스. 비제한 검색도 수행. 기존 기사 결과의 원 검색 기록: 네이버페이·카카오페이·토스페이·애플페이·삼성페이/삼성월렛 각각 2026년 10~11월 및 결제 키워드로 검색. 사이트 제한 검색: 이데일리, 이투데이, 뉴스핌, 뉴스1, 뉴시스, 전자신문, 아주경제; 별도 비제한 검색으로 연합뉴스 기사 확인. 기존 공개 기사 후보를 열어 본문 제목·게재일 재확인. 아시아경제 카카오페이 멤버십 기사는 원문 접근 실패로 제외. 전체 50개 매체에 대한 회사별 교차 검색과 모든 국내 언론사 전수조사는 하지 못했고 검색 색인의 누락 가능성이 있다. 기사 건수는 완전 집계가 아니다. 검색 시 10월 1일·9월 보도 등 기간 밖 후보는 제외. 토스페이 직접 관련성이 확인되지 않은 합병 및 페이스페이 기사 제외. 모든 국내 언론사 및 각 매체별 전체 검색, 정확한 쿼리별 후보 수는 확인하지 못함. 추가 검색: 회사명/서비스별 2026년 10~11월, 토스페이 site:news1.kr·etnews.com, 네이버페이 site:news1.kr·newsis.com, 카카오페이 site:newsis.com·etnews.com, 애플페이 국감, 삼성월렛 2026년 10월 결제. 원문 게재일을 확인한 연합뉴스·한국금융신문·전자신문·뉴시스·뉴스1·아시아타임즈 등 추가. 언론사 9개 목표 미달은 기사 부재나 국내 언론사 전체 검색을 의미하지 않는다. 추가 검색: 2026-10-30 뚜레쥬르 토스페이·2026-10-28 삼성월렛 우리은행 해외결제; 원문에서 확인한 뉴스1·조선비즈·뉴스투데이·로이슈와 경향신문·비즈니스워치·파이낸셜포스트·YTN·뉴스웨이·뉴스클레임의 같은 보도를 추가함. 뉴스1 전재물을 원매체와 중복 집계하지 않는다.\n11/07 관련보도 검증: 네이버·카카오 축제 뉴시스(10/23), 카카오 노난날·QR오더·마이데이터 전자신문(각 10/19·10/23·10/14), 토스 뚜레쥬르 전자신문·연합뉴스·한국금융신문·뉴스1·조선비즈·로이슈(10/30), 애플페이 뉴시스(10/22), 삼성월렛 경향신문·비즈니스워치·YTN(10/28)의 본문 게재일을 확인했다. 뉴스투데이·파이낸셜포스트·뉴스웨이·뉴스클레임 관련보도는 원문 접근·게재일 확인 실패로 제거했다. 기존 대표기사 네이버페이 서귀포(이데일리), 네이버페이 레스토랑위크(뉴스핌), 카카오페이 노난날(이데일리), 애플페이(이데일리), 삼성월렛 글로벌(아시아타임즈)은 재접근이 실패해 각각 뉴시스·뉴시스·전자신문·뉴시스·경향신문의 동일 사건 원문으로 대체했다. 11월 9일 오후 5개 서비스와 날짜를 결합해 비제한 검색했으며 11월 9일 신규 관련 언론기사는 확인하지 못했다. 카카오페이 실적에 관한 11월 3일 아시아경제 원문을 추가 확인했다."
-    }
-  ],
-  "highlights": [
-    {
-      "company": "신한카드",
-      "date": "2026-11-09",
-      "text": "금융감독원이 우리카드 개인정보 유출에 대한 제재심을 준비하고 신한카드 건의 심의 일정도 조율 중이라고 보도했다. 제재는 아직 확정되지 않았다.",
-      "url": "https://biz.chosun.com/stock/finance/2026/11/09/W3TYFKCKDZE5LL6SFVPNKMNMHM/",
-      "eventId": "woori-shinhan-privacy-review-20261109"
-    },
-    {
-      "company": "카카오페이",
-      "date": "2026-11-03",
-      "text": "3분기 연결 영업이익은 전년 동기 대비 105% 증가한 325억원이며 결제 서비스 거래액은 25% 늘었다.",
-      "url": "https://www.etoday.co.kr/news/view/2643553",
-      "eventId": "kakaopay-3q26"
-    },
-    {
-      "company": "삼성카드",
-      "date": "2026-11-01",
-      "text": "3분기 누적 삼성카드 순이익은 4,503억원으로 전년 동기 대비 9.5% 감소했다.",
-      "url": "https://www3.edaily.co.kr/News/Read?mediaCodeNo=257&newsId=03099606645641456",
-      "eventId": "card-2026q3-comparison"
-    }
-  ],
-  "companies": [
-    {
-      "id": "samsung",
-      "name": "삼성카드",
-      "group": "card",
-      "digest": "3분기 누적 이익은 감소했으며 메리어트·다이소 제휴 상품이 주목됐다.",
-      "searchStatus": "9개 우선 언론사 도메인별 회사명 검색을 각각 시도했으나 모든 결과를 소진하거나 원문을 전수 확인하지 못했습니다.",
-      "articles": [
-        {
-          "eventId": "card-2026q3-comparison",
-          "date": "2026-11-01",
-          "outlet": "이데일리",
-          "title": "신한카드, 삼성 제치고 순익 1위 탈환했지만…양대 카드사 수익성은 뒷걸음질",
-          "url": "https://www3.edaily.co.kr/News/Read?mediaCodeNo=257&newsId=03099606645641456",
-          "category": "실적·재무",
-          "importance": "high",
-          "summary": "3분기 누적 삼성카드 순이익은 4,503억원으로 전년 동기 대비 9.5% 감소했다.",
-          "also": [
-            {
-              "outlet": "뉴시스",
-              "url": "https://nwww.newsis.com/view/NISX20261027_0003842317",
-              "date": "2026-10-27"
-            }
-          ]
-        },
-        {
-          "eventId": "samsung-marriott-20261022",
-          "date": "2026-10-22",
-          "outlet": "이데일리",
-          "title": "돈 되는 고객 잡아라…삼성카드도 뛰어든 호텔 제휴카드 경쟁",
-          "url": "https://www1.edaily.co.kr/News/Read?mediaCodeNo=257&newsId=04716646645615544",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "메리어트와 프리미엄 호텔 제휴 카드를 출시했다.",
-          "also": [
-            {
-              "outlet": "뉴시스",
-              "url": "https://nwww.newsis.com/view/NISX20261022_0003836628",
-              "date": "2026-10-22"
-            }
-          ]
-        },
-        {
-          "eventId": "samsung-daiso-20261016",
-          "date": "2026-10-16",
-          "outlet": "뉴스핌",
-          "title": "삼성카드, '다이소 삼성카드' 개편…온·오프라인 월 최대 4만원 할인",
-          "url": "https://ir.newspim.com/news/view/20261016000319",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "다이소 제휴카드의 온라인몰 할인 범위를 확대했다.",
-          "also": []
-        },
-        {
-          "eventId": "shinsegae-card-festa-202610",
-          "date": "2026-10-15",
-          "outlet": "뉴스핌",
-          "title": "삼성카드, 신세계백화점 쇼핑 혜택…최대 350만 신백리워드",
-          "url": "https://member.newspim.com/news/view/20261015001103",
-          "category": "상품·서비스",
-          "importance": "low",
-          "summary": "신세계 제휴 삼성카드 고객을 대상으로 백화점 리워드 행사를 진행했다.",
-          "also": []
-        }
-      ]
-    },
-    {
-      "id": "shinhan",
-      "name": "신한카드",
-      "group": "card",
-      "digest": "3분기 실적에 일회성 매각 이익이 반영됐고 디지털 결제와 상품 제휴가 이어졌다.",
-      "searchStatus": "9개 우선 언론사 도메인별 회사명 검색을 각각 시도했으나 모든 결과를 소진하거나 원문을 전수 확인하지 못했습니다.",
-      "articles": [
-        {
-          "eventId": "woori-shinhan-privacy-review-20261109",
-          "date": "2026-11-09",
-          "outlet": "조선비즈",
-          "title": "금감원, ‘가맹점주 정보 유출’ 우리카드 곧 제재… 신한도 일정 조율",
-          "url": "https://biz.chosun.com/stock/finance/2026/11/09/W3TYFKCKDZE5LL6SFVPNKMNMHM/",
-          "category": "사고·리스크",
-          "importance": "high",
-          "summary": "금융감독원이 우리카드 개인정보 유출에 대한 제재심을 준비하고 신한카드 건의 심의 일정도 조율 중이라고 보도했다. 제재는 아직 확정되지 않았다.",
-          "also": []
-        },
-        {
-          "eventId": "shinhan-adidas-20261102",
-          "date": "2026-11-02",
-          "outlet": "연합뉴스",
-          "title": "[게시판] 신한카드 \"연내 '아디다스 신한카드' 출시\"",
-          "url": "https://www.yna.co.kr/amp/view/AKR20261102037200002",
-          "category": "제휴·M&A",
-          "importance": "mid",
-          "summary": "아디다스 및 마스터카드와 제휴카드 출시 협약을 체결했다.",
-          "also": []
-        },
-        {
-          "eventId": "card-2026q3-comparison",
-          "date": "2026-11-01",
-          "outlet": "이데일리",
-          "title": "신한카드, 삼성 제치고 순익 1위 탈환했지만…양대 카드사 수익성은 뒷걸음질",
-          "url": "https://www3.edaily.co.kr/News/Read?mediaCodeNo=257&newsId=03099606645641456",
-          "category": "실적·재무",
-          "importance": "high",
-          "summary": "3분기 누적 순이익 4,858억원에는 사옥 매각에 따른 일회성 이익이 포함됐다.",
-          "also": []
-        },
-        {
-          "eventId": "shinhan-indonesia-qr-20261029",
-          "date": "2026-10-29",
-          "outlet": "뉴스핌",
-          "title": "신한카드, 인도네시아 QR결제 개시…환전·실물카드 없이 이용",
-          "url": "https://search.newspim.com/news/view/20261029000647",
-          "category": "디지털·기술",
-          "importance": "mid",
-          "summary": "인도네시아에서 신한 SOL페이를 통한 QR 결제 서비스를 시작했다.",
-          "also": []
-        },
-        {
-          "eventId": "shinhan-giwa-20261027",
-          "date": "2026-10-27",
-          "outlet": "뉴시스",
-          "title": "신한카드, 두나무 블록체인서 토큰 결제 실증…상용화 점검",
-          "url": "https://www.newsis.com/view/NISX20261027_0003842276",
-          "category": "디지털·기술",
-          "importance": "mid",
-          "summary": "두나무 기와체인과 지갑을 활용한 토큰 결제 테스트에 나섰다.",
-          "also": []
-        },
-        {
-          "eventId": "shinhan-sbi-20261021",
-          "date": "2026-10-21",
-          "outlet": "뉴스핌",
-          "title": "신한카드, 日 SBI그룹과 엔화 스테이블코인 결제 검증",
-          "url": "https://ir.newspim.com/news/view/20261021001147",
-          "category": "제휴·M&A",
-          "importance": "mid",
-          "summary": "일본 SBI 계열사와 엔화 스테이블코인 기반 결제와 국경 간 정산 개념검증을 추진한다.",
-          "also": []
-        },
-        {
-          "eventId": "shinhan-loan-20261020",
-          "date": "2026-10-20",
-          "outlet": "뉴시스",
-          "title": "신한카드, 중저신용자 생활안정대출 출시…최저금리 연 9.9%",
-          "url": "https://mobile.newsis.com/view/NISX20261020_0003833857",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "중·저신용자 대상 중금리 생활안정대출을 출시했다.",
-          "also": []
-        },
-        {
-          "eventId": "shinhan-retirement-20261015",
-          "date": "2026-10-15",
-          "outlet": "뉴시스",
-          "title": "신한카드, 올해 두번째 희망퇴직 실시…근속 15년 이상 대상",
-          "url": "https://nwww.newsis.com/view/NISX20261015_0003827887",
-          "category": "인사·조직",
-          "importance": "mid",
-          "summary": "근속 15년 이상 직원 대상으로 희망퇴직 신청을 받는다고 밝혔다.",
-          "also": []
-        },
-        {
-          "eventId": "shinhan-esg-20261014",
-          "date": "2026-10-14",
-          "outlet": "뉴스핌",
-          "title": "신한카드, 기후 특강·상생마켓·환아 지원 봉사 'ESG 위크' 진행",
-          "url": "https://search.newspim.com/news/view/20261014000728",
-          "category": "사회공헌·기타",
-          "importance": "low",
-          "summary": "기후 특강과 물품 기부, 사회적 기업 상생마켓 등 행사를 열었다.",
-          "also": [
-            {
-              "outlet": "뉴시스",
-              "url": "https://nwww.newsis.com/view/NISX20261014_0003825151",
-              "date": "2026-10-14"
-            }
-          ]
-        },
-        {
-          "eventId": "shinhan-donation-20261013",
-          "date": "2026-10-13",
-          "outlet": "뉴스핌",
-          "title": "신한카드, '땡겨요' 결제하면 기부 참여…'같이페이 시즌2' 진행",
-          "url": "https://www.newspim.com/news/view/20261013000372",
-          "category": "사회공헌·기타",
-          "importance": "low",
-          "summary": "고객의 결제와 연계한 지역사회 지원 캠페인을 진행했다.",
-          "also": []
-        },
-        {
-          "eventId": "shinhan-senior-20261010",
-          "date": "2026-10-10",
-          "outlet": "뉴시스",
-          "title": "신한카드, 충북 어르신 수도권 교통 지원…'시니어패스' 선봬",
-          "url": "https://nwww.newsis.com/view/NISX20261008_0003819668",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "충북 지역 65세 이상 주민을 위한 수도권 지하철 무임 교통카드 협약을 발표했다.",
-          "also": []
-        }
-      ]
-    },
-    {
-      "id": "kb",
-      "name": "KB국민카드",
-      "group": "card",
-      "digest": "3분기 누적 실적이 증가하고 디지털 자산 결제 구상과 사회공헌 활동이 보도됐다.",
-      "searchStatus": "9개 우선 언론사 도메인별 회사명 검색을 각각 시도했으나 모든 결과를 소진하거나 원문을 전수 확인하지 못했습니다.",
-      "articles": [
-        {
-          "eventId": "kb-need-oil-20261106",
-          "date": "2026-11-06",
-          "outlet": "전자신문",
-          "title": "KB국민카드, 주유 특화상품 'KB NEED Oil 카드' 출시",
-          "url": "https://www.etnews.com/20261106000123",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "주유 특화 카드인 KB NEED Oil 카드를 출시했다.",
-          "also": [
-            {
-              "outlet": "연합뉴스",
-              "url": "https://www.yna.co.kr/amp/view/AKR20261106071400002",
-              "date": "2026-11-06"
-            }
-          ]
-        },
-        {
-          "eventId": "kb-art-20261104",
-          "date": "2026-11-04",
-          "outlet": "뉴스핌",
-          "title": "KB국민카드, 본사 로비에 발달장애 아동·청소년 작가 작품 전시",
-          "url": "https://www.newspim.com/news/view/20261104000345",
-          "category": "사회공헌·기타",
-          "importance": "low",
-          "summary": "지원 사업 참여 작가의 작품을 본사 로비에 전시했다.",
-          "also": []
-        },
-        {
-          "eventId": "kb-brand-20261102",
-          "date": "2026-11-02",
-          "outlet": "뉴스핌",
-          "title": "KB국민카드, '소비자가 가장 추천하는 브랜드' 신용카드 부문 11년 연속 1위",
-          "url": "https://web3.newspim.com/news/view/20261102000524",
-          "category": "사회공헌·기타",
-          "importance": "low",
-          "summary": "한국능률협회컨설팅의 브랜드 추천도 조사에서 신용카드 부문 1위에 올랐다고 밝혔다.",
-          "also": []
-        },
-        {
-          "eventId": "kb-2026q3",
-          "date": "2026-10-29",
-          "outlet": "뉴스핌",
-          "title": "KB국민카드, 3분기 누적 순이익 3317억원…전년比 18.2% 증가",
-          "url": "https://www.newspim.com/news/view/20261029001165",
-          "category": "실적·재무",
-          "importance": "high",
-          "summary": "3분기 누적 순이익은 3,317억원으로 전년 동기 대비 18.2% 늘었다.",
-          "also": [
-            {
-              "outlet": "머니투데이",
-              "url": "https://www.mt.co.kr/index.php/finance/2026/10/29/2026102915575856266",
-              "date": "2026-10-29"
-            }
-          ]
-        },
-        {
-          "eventId": "kb-lantern-20261022",
-          "date": "2026-10-22",
-          "outlet": "뉴스핌",
-          "title": "KB국민카드, 고객과 태양광 랜턴 제작…인도네시아 아이들에 전달",
-          "url": "https://search.newspim.com/news/view/20261022001130",
-          "category": "사회공헌·기타",
-          "importance": "low",
-          "summary": "대학생 고객과 임직원이 태양광 랜턴을 만들어 인도네시아에 전달하는 활동을 진행했다.",
-          "also": []
-        },
-        {
-          "eventId": "kb-kcsi-20261015",
-          "date": "2026-10-15",
-          "outlet": "뉴스핌",
-          "title": "KB국민카드, KCSI 체크카드 부문 12년 연속 1위",
-          "url": "https://ir.newspim.com/news/view/20261015001138",
-          "category": "사회공헌·기타",
-          "importance": "low",
-          "summary": "한국능률협회컨설팅 고객만족도 조사에서 체크카드 부문 1위로 선정됐다.",
-          "also": []
-        },
-        {
-          "eventId": "kb-sbi-ai-20261013",
-          "date": "2026-10-13",
-          "outlet": "이데일리",
-          "title": "KB카드·에버스핀·SBI그룹, 에이전트 및 스테이블코인 결제 협력",
-          "url": "https://www.edaily.co.kr/News/Read?mediaCodeNo=257&newsId=03007766645612592",
-          "category": "디지털·기술",
-          "importance": "mid",
-          "summary": "KB국민카드 등 4개사는 AI 에이전트의 신원·권한 검증과 한일 디지털 결제 협력을 위한 업무협약을 체결했다.",
-          "also": []
-        }
-      ]
-    },
-    {
-      "id": "lotte",
-      "name": "롯데카드",
-      "group": "card",
-      "digest": "자동차금융 자산 유동화와 골프·육아·외국인 관광객 대상 상품 제휴가 확인됐다.",
-      "searchStatus": "9개 우선 언론사 도메인별 회사명 검색을 각각 시도했으나 모든 결과를 소진하거나 원문을 전수 확인하지 못했습니다.",
-      "articles": [
-        {
-          "eventId": "lotte-golfzon-20261105",
-          "date": "2026-11-05",
-          "outlet": "이투데이",
-          "title": "골프존 자주 간다면⋯롯데카드, 30% 캐시백 카드 선봬",
-          "url": "https://www.etoday.co.kr/news/view/2644501",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "골프존 이용 고객을 대상으로 제휴카드를 출시했다.",
-          "also": []
-        },
-        {
-          "eventId": "lotte-auto-abs-20261020",
-          "date": "2026-10-20",
-          "outlet": "헤럴드경제",
-          "title": "롯데카드, 자동차 할부채권 첫 유동화…1670억 조달",
-          "url": "https://biz.heraldcorp.com/article/10908246",
-          "category": "실적·재무",
-          "importance": "high",
-          "summary": "자동차 할부금융 채권을 바탕으로 1,670억원 규모 자산유동화기업어음을 발행했다.",
-          "also": []
-        },
-        {
-          "eventId": "lotte-parent-20261016",
-          "date": "2026-10-16",
-          "outlet": "이투데이",
-          "title": "롯데카드, 육아 특화 ‘아이엔 디지로카’ 11월 출시",
-          "url": "https://www.etoday.co.kr/news/view/2636589",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "육아 관련 기업들과 제휴해 육아 소비 분야 특화 카드의 11월 출시를 발표했다.",
-          "also": [
-            {
-              "outlet": "뉴시스",
-              "url": "https://mobile.newsis.com/view_amp.html?ar_id=NISX20261016_0003829317",
-              "date": "2026-10-18"
-            }
-          ]
-        },
-        {
-          "eventId": "lotte-tourist-20261012",
-          "date": "2026-10-12",
-          "outlet": "전자신문",
-          "title": "롯데카드, 롯데백화점과 외국인 전용 카드 출시",
-          "url": "https://www.etnews.com/20261012000034",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "외국인 관광객을 위한 선불 결제·멤버십 통합 상품을 출시했다.",
-          "also": []
-        }
-      ]
-    },
-    {
-      "id": "woori",
-      "name": "우리카드",
-      "group": "card",
-      "digest": "3분기 누적 이익이 늘었으며 독자카드와 제휴 상품을 확대했다.",
-      "searchStatus": "11월 9일 재검색 및 이전 기간 내 기사 활용. 회사별 우선 9개 매체 교차검색 미완료.",
-      "articles": [
-        {
-          "eventId": "woori-shinhan-privacy-review-20261109",
-          "date": "2026-11-09",
-          "outlet": "조선비즈",
-          "title": "금감원, ‘가맹점주 정보 유출’ 우리카드 곧 제재… 신한도 일정 조율",
-          "url": "https://biz.chosun.com/stock/finance/2026/11/09/W3TYFKCKDZE5LL6SFVPNKMNMHM/",
-          "category": "사고·리스크",
-          "importance": "high",
-          "summary": "금융감독원이 우리카드 개인정보 유출에 대한 제재심을 준비하고 신한카드 건의 심의 일정도 조율 중이라고 보도했다. 제재는 아직 확정되지 않았다.",
-          "also": []
-        },
-        {
-          "eventId": "woori-wwf-20261102",
-          "date": "2026-11-02",
-          "outlet": "뉴스핌",
-          "title": "우리카드, 노사 공동 해안정화 봉사…세계자연기금에 5000만원 기부",
-          "url": "https://search.newspim.com/news/view/20261102000459",
-          "category": "사회공헌·기타",
-          "importance": "low",
-          "summary": "노사 공동 해안정화 봉사와 세계자연기금 기부 활동을 발표했다.",
-          "also": []
-        },
-        {
-          "eventId": "woori-q3",
-          "date": "2026-10-23",
-          "outlet": "뉴데일리경제",
-          "title": "우리카드, 3분기 누적 순익 26.4%↑… 독자카드 사업 확대",
-          "url": "https://biz.newdaily.co.kr/site/data/html/2026/10/23/2026102300310.html",
-          "category": "실적·재무",
-          "importance": "high",
-          "summary": "3분기 누적 순이익은 1,337억원으로 전년 동기 대비 26.4% 증가했으나 3분기 단독 순이익은 전 분기보다 줄었다.",
-          "also": []
-        },
-        {
-          "eventId": "npay-woori-check",
-          "date": "2026-10-22",
-          "outlet": "뉴스핌",
-          "title": "우리카드, 실적 조건 없이 최대 1.3% 적립 'Npay 우리 체크' 출시",
-          "url": "https://www.newspim.com/news/view/20261022001126",
-          "category": "제휴·M&A",
-          "importance": "mid",
-          "summary": "네이버페이와 함께 Npay 포인트를 적립하는 체크카드를 선보였다.",
-          "also": []
-        },
-        {
-          "eventId": "deposit-card-20261021",
-          "date": "2026-10-21",
-          "outlet": "이투데이",
-          "title": "청년·외국인도 보증금으로 신용카드 발급…금융위, 혁신금융서비스 4건 지정",
-          "url": "https://www.etoday.co.kr/news/view/2638534?trc=m_search_list_etoday_news",
-          "category": "규제·정책",
-          "importance": "high",
-          "summary": "금융위원회는 국내 거주 외국인을 위한 우리카드의 비대면 보증금 기반 카드 발급 서비스를 혁신금융서비스로 지정했다.",
-          "also": []
-        }
-      ]
-    },
-    {
-      "id": "hana",
-      "name": "하나카드",
-      "group": "card",
-      "digest": "3분기 누적 결제 이용액과 순이익이 증가했고 공급망 금융 제휴를 추진했다.",
-      "searchStatus": "11월 9일 재검색 및 이전 기간 내 기사 활용. 회사별 우선 9개 매체 교차검색 미완료.",
-      "articles": [
-        {
-          "eventId": "hana-cu-20261104",
-          "date": "2026-11-04",
-          "outlet": "뉴스핌",
-          "title": "하나은행·하나카드, CU와 군부대 간식차 지원 릴레이 진행",
-          "url": "https://newspim.com/news/view/20261104000108",
-          "category": "사회공헌·기타",
-          "importance": "low",
-          "summary": "하나은행과 하나카드는 CU와 함께 국군의 날 응원 행사에서 선정된 부대에 간식차를 지원한다고 밝혔다.",
-          "also": []
-        },
-        {
-          "eventId": "hana-ai-strategy-20261030",
-          "date": "2026-10-30",
-          "outlet": "한국금융신문",
-          "title": "성영수 하나카드 대표, AI·스테이블코인 앞세워 미래결제 시장 공략 [카드사 미래결제 전략]",
-          "url": "https://www.fntimes.com/html/view.php?ud=2026103015552524859efc5ce4ae_18",
-          "category": "디지털·기술",
-          "importance": "mid",
-          "summary": "SK텔레콤과 AI 기반 결제 서비스 개발, 두나무와 스테이블코인 결제·정산 기술 검증을 추진한다.",
-          "also": []
-        },
-        {
-          "eventId": "hana-ceo-shortlist-20261026",
-          "date": "2026-10-26",
-          "outlet": "뉴스핌",
-          "title": "하나금융, 차기 CEO 인선 본격화…6개 자회사 숏리스트 확정",
-          "url": "https://search.newspim.com/news/view/20261026000983",
-          "category": "인사·조직",
-          "importance": "mid",
-          "summary": "하나금융은 하나카드 등 6개 자회사 최고경영자 후보군을 각각 3명 이내로 압축했다.",
-          "also": []
-        },
-        {
-          "eventId": "hana-q3",
-          "date": "2026-10-23",
-          "outlet": "한국금융신문",
-          "title": "성영수 하나카드 대표, 신용판매 성장세 지속…결제 중심 영업전략 성과 [금융사 2026 3분기 실적]",
-          "url": "https://www.fntimes.com/html/view.php?ud=202610231532513299efc5ce4ae_18",
-          "category": "실적·재무",
-          "importance": "high",
-          "summary": "3분기 누적 순이익은 1,753억원으로 3.1%, 카드 이용금액은 9.0% 증가했다.",
-          "also": []
-        },
-        {
-          "eventId": "hana-steel",
-          "date": "2026-10-22",
-          "outlet": "뉴스핌",
-          "title": "하나은행·하나카드, 동국제강과 공급망 금융 지원",
-          "url": "https://newspim.com/news/view/20261022000151",
-          "category": "제휴·M&A",
-          "importance": "mid",
-          "summary": "동국제강 B2B 플랫폼 구매기업의 대출과 카드결제를 자동 연계하기로 협약했다.",
-          "also": []
-        },
-        {
-          "eventId": "shinsegae-card-festa-202610",
-          "date": "2026-10-15",
-          "outlet": "뉴스핌",
-          "title": "하나카드, 신세계백화점 쇼핑 혜택…최대 350만 신백리워드",
-          "url": "https://newspim.com/news/view/20261015001066",
-          "category": "상품·서비스",
-          "importance": "low",
-          "summary": "신세계 제휴 하나카드 고객을 대상으로 백화점 혜택 행사를 발표했다.",
-          "also": []
-        }
-      ]
-    },
-    {
-      "id": "bc",
-      "name": "BC카드",
-      "group": "card",
-      "digest": "AI 기반 서비스와 QR 결제 활용 확대에 나섰다.",
-      "searchStatus": "11월 9일 재검색 및 이전 기간 내 기사 활용. 회사별 우선 9개 매체 교차검색 미완료.",
-      "articles": [
-        {
-          "eventId": "bc-autumn-20261105",
-          "date": "2026-11-05",
-          "outlet": "뉴시스",
-          "title": "BC카드, 테마파크 최대 58% 할인 이벤트…해외여행도 혜택",
-          "url": "https://nwww.newsis.com/view/NISX20261104_0003855356",
-          "category": "상품·서비스",
-          "importance": "low",
-          "summary": "BC카드는 테마파크 및 해외여행 상품 관련 할인 이벤트를 발표했다.",
-          "also": []
-        },
-        {
-          "eventId": "bc-ai-agent",
-          "date": "2026-11-04",
-          "outlet": "뉴시스",
-          "title": "BC카드, 전 직원에 AI 에이전트 제공…연간 10만시간 절감",
-          "url": "https://mobile.newsis.com/view/NISX20261104_0003854126",
-          "category": "디지털·기술",
-          "importance": "mid",
-          "summary": "BC카드는 전 직원에게 AI 에이전트를 제공한다고 밝혔다.",
-          "also": []
-        },
-        {
-          "eventId": "bc-eatpl-ai-20261103",
-          "date": "2026-11-03",
-          "outlet": "뉴스핌",
-          "title": "비씨카드, 맛집 서비스 '잇플' 활용 AI 공모전…개인 개발자에 API 개방",
-          "url": "https://www.newspim.com/news/view/20261103000924",
-          "category": "디지털·기술",
-          "importance": "mid",
-          "summary": "결제 데이터 기반 음식점 서비스 잇플의 API를 개인 개발자에게 개방하고 AI 서비스 공모전을 개최했다.",
-          "also": []
-        },
-        {
-          "eventId": "bc-qr",
-          "date": "2026-10-28",
-          "outlet": "뉴스핌",
-          "title": "BC카드, 한·중 대학생 서포터즈 교류 추진…중국 QR결제 알린다",
-          "url": "https://member.newspim.com/news/view/20261028000744",
-          "category": "디지털·기술",
-          "importance": "mid",
-          "summary": "대학생 교류 프로그램을 통해 중국 QR결제 체험과 이용 안내를 추진한다.",
-          "also": []
-        },
-        {
-          "eventId": "shinsegae-card-festa-202610",
-          "date": "2026-10-15",
-          "outlet": "뉴스핌",
-          "title": "BC카드, 신세계백화점 쇼핑 혜택…최대 350만원 리워드",
-          "url": "https://search.newspim.com/news/view/20261015001009",
-          "category": "상품·서비스",
-          "importance": "low",
-          "summary": "신세계 제휴 BC카드 고객 대상 리워드와 할인행사를 진행했다.",
-          "also": []
-        }
-      ]
-    },
-    {
-      "id": "nh",
-      "name": "NH농협카드",
-      "group": "card",
-      "digest": "AI 결제 개념검증과 신규 카드 출시를 발표했다.",
-      "searchStatus": "11월 9일 재검색 및 이전 기간 내 기사 활용. 회사별 우선 9개 매체 교차검색 미완료.",
-      "articles": [
-        {
-          "eventId": "nh-money-benefits-20261109",
-          "date": "2026-11-09",
-          "outlet": "이뉴스투데이",
-          "title": "NH농협카드, NH머니 결제 시 최대 10.5% 적립",
-          "url": "https://www.enewstoday.co.kr/news/articleView.html?idxno=2489811",
-          "category": "상품·서비스",
-          "importance": "low",
-          "summary": "NH머니 결제 고객에게 적립 혜택과 추첨 행사를 제공한다고 밝혔다.",
-          "also": []
-        },
-        {
-          "eventId": "nh-pay-catch-ad-20261109",
-          "date": "2026-11-09",
-          "outlet": "더팩트",
-          "title": "NH농협카드, NH페이 홍보 강화…경품 이벤트 진행",
-          "url": "https://news.tf.co.kr/read/economy/2386304.htm",
-          "category": "상품·서비스",
-          "importance": "low",
-          "summary": "NH페이 광고를 공개하고 CGV 결제 할인 등 이용 행사를 진행한다.",
-          "also": []
-        },
-        {
-          "eventId": "nh-china-20261104",
-          "date": "2026-11-04",
-          "outlet": "뉴스핌",
-          "title": "NH농협카드, 알리익스프레스 최대 32달러 할인…중국 여행 혜택도",
-          "url": "https://www.newspim.com/news/view/20261104000261",
-          "category": "상품·서비스",
-          "importance": "low",
-          "summary": "해외 직구와 중국 청도 현지 가맹점 관련 할인 행사를 발표했다.",
-          "also": []
-        },
-        {
-          "eventId": "nh-lpba-20261103",
-          "date": "2026-11-03",
-          "outlet": "뉴스핌",
-          "title": "NH농협카드, 김보미 LPBA 첫 우승 기념 이벤트…5000명에 아이스크림",
-          "url": "https://newspim.com/news/view/20261103000854",
-          "category": "사회공헌·기타",
-          "importance": "low",
-          "summary": "자사 프로당구단 선수의 첫 우승을 기념해 고객 응모 행사를 진행한다고 밝혔다.",
-          "also": []
-        },
-        {
-          "eventId": "nh-easy",
-          "date": "2026-10-19",
-          "outlet": "뉴스핌",
-          "title": "NH농협카드, 전월 실적 없이 온라인 2% 적립 'zgm Easy카드' 출시",
-          "url": "https://ir.newspim.com/news/view/20261019001003",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "전월 실적 조건 없이 온라인 결제 등에 포인트를 적립하는 비대면 전용 카드를 출시했다.",
-          "also": []
-        },
-        {
-          "eventId": "nh-agentic",
-          "date": "2026-10-16",
-          "outlet": "뉴스핌",
-          "title": "NH농협카드, AI가 쇼핑부터 결제까지…스테이블코인 결제 실증 추진",
-          "url": "https://ir.newspim.com/news/view/20261016000257",
-          "category": "디지털·기술",
-          "importance": "mid",
-          "summary": "안랩블록체인컴퍼니와 AI 에이전트 및 스테이블코인 기반 결제의 개념검증을 추진한다.",
-          "also": []
-        },
-        {
-          "eventId": "nh-rural",
-          "date": "2026-10-14",
-          "outlet": "뉴스핌",
-          "title": "NH농협카드, 수확기 맞아 경기도 양주 농가서 일손돕기 봉사",
-          "url": "https://m.newspim.com/news/view/20261014000692",
-          "category": "사회공헌·기타",
-          "importance": "low",
-          "summary": "임직원 26명이 양주 농가에서 수확과 환경정화 활동을 도왔다.",
-          "also": []
-        }
-      ]
-    },
-    {
-      "id": "hyundai",
-      "name": "현대카드",
-      "group": "card",
-      "digest": "3분기 순이익이 증가했고 카드 디자인과 제휴 활동을 이어갔다.",
-      "searchStatus": "11월 9일 재검색 및 이전 기간 내 기사 활용. 회사별 우선 9개 매체 교차검색 미완료.",
-      "articles": [
-        {
-          "eventId": "hyundai-emart-food-20261104",
-          "date": "2026-11-04",
-          "outlet": "뉴스핌",
-          "title": "현대카드·이마트, 결제 데이터로 고른 을지로 맛집 간편식 5종 출시",
-          "url": "https://ir.newspim.com/news/view/20261104000243",
-          "category": "제휴·M&A",
-          "importance": "mid",
-          "summary": "현대카드는 이마트와 함께 결제 데이터를 활용해 선정한 식당의 메뉴를 간편식으로 출시했다.",
-          "also": []
-        },
-        {
-          "eventId": "hyundai-q3",
-          "date": "2026-10-29",
-          "outlet": "뉴스핌",
-          "title": "현대카드, 3분기 누적 순익 2758억원…전년比 8.2% 증가",
-          "url": "https://www.newspim.com/news/view/20261029001021",
-          "category": "실적·재무",
-          "importance": "high",
-          "summary": "3분기 누적 순이익은 2,758억원으로 전년 동기보다 8.2% 증가했다.",
-          "also": []
-        },
-        {
-          "eventId": "hyundai-alphabet",
-          "date": "2026-10-21",
-          "outlet": "아주경제",
-          "title": "현대카드 '알파벳카드', 출범 3개월 만에 발급 15만장 돌파",
-          "url": "https://www.ajunews.com/view/20261021101248512",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "현대카드는 알파벳카드 발급이 3개월 만에 15만장을 넘었다고 밝혔다.",
-          "also": []
-        },
-        {
-          "eventId": "hyundai-mmall-store-20261019",
-          "date": "2026-10-19",
-          "outlet": "뉴스핌",
-          "title": "현대카드, M몰에 '브랜드 스토어' 오픈…스노우피크·헤이 등 입점",
-          "url": "https://member.newspim.com/news/view/20261019001071",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "M몰 앱에 여러 브랜드의 공식 스토어와 콘텐츠를 모은 브랜드 스토어를 열었다.",
-          "also": []
-        },
-        {
-          "eventId": "hyundai-wine",
-          "date": "2026-10-16",
-          "outlet": "뉴스핌",
-          "title": "현대카드, 도산공원서 와인·미식 행사…'레드바'도 새단장",
-          "url": "https://member.newspim.com/news/view/20261016000348",
-          "category": "상품·서비스",
-          "importance": "low",
-          "summary": "현대카드가 이마트와 와인·미식 행사를 열고 공간을 새 단장했다.",
-          "also": []
-        },
-        {
-          "eventId": "hyundai-awards",
-          "date": "2026-10-12",
-          "outlet": "뉴스핌",
-          "title": "현대카드, 세계적 디자인 어워드 '레드닷·IDEA' 동시 수상",
-          "url": "https://m.newspim.com/news/view/20261012000632",
-          "category": "사회공헌·기타",
-          "importance": "low",
-          "summary": "브랜드 리뉴얼과 카드 디자인이 레드닷 및 IDEA 디자인 어워드에서 수상했다.",
-          "also": []
-        }
-      ]
-    },
-    {
-      "id": "naverpay",
-      "name": "네이버페이",
-      "group": "pay",
-      "digest": "지역상권 결제 단말 보급, 가맹점 데이터 서비스와 우리 체크카드 제휴가 확인됐다.",
-      "searchStatus": "11월 9일 서비스명 기준 비제한 검색 및 기존 보도 발행일 검증. 50개 매체별 전수 검색은 하지 못함.",
-      "articles": [
-        {
-          "eventId": "npay-seogwipo",
-          "date": "2026-11-06",
-          "outlet": "뉴시스",
-          "title": "\"서귀포글로컬상권 네이버페이 결제 확대\" 업무협약",
-          "url": "https://www.newsis.com/view/NISX20261106_0003857707",
-          "category": "제휴·M&A",
-          "importance": "mid",
-          "summary": "제주도·제주애퐁당과 서귀포중심상가에 Npay 커넥트 도입과 상인 디지털 활용 지원을 추진한다.",
-          "also": []
-        },
-        {
-          "eventId": "npay-festa",
-          "date": "2026-10-30",
-          "outlet": "아주경제",
-          "title": "네이버, '넾페스타' 개최…멤버십·간편결제 서비스 오프라인 체험 확대",
-          "url": "https://www.ajunews.com/view/20261030111724291",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "행사에 페이스사인 입장 인증과 Npay 월렛 체험을 적용했다.",
-          "also": []
-        },
-        {
-          "eventId": "npay-biz",
-          "date": "2026-10-29",
-          "outlet": "뉴스핌",
-          "title": "네이버페이, 'Npay biz 우리 가게 리포트' 출시…매출·상권 분석 무료 제공",
-          "url": "https://www.newspim.com/news/view/20261029000194",
-          "category": "디지털·기술",
-          "importance": "mid",
-          "summary": "Npay 커넥트 가맹점이 매장과 주변 상권 데이터를 볼 수 있는 분석 서비스를 베타 출시했다.",
-          "also": []
-        },
-        {
-          "eventId": "npay-festival-dining",
-          "date": "2026-10-23",
-          "outlet": "뉴시스",
-          "title": "네이버·카카오페이, 미식 행사서 결제 편의·혜택 제공",
-          "url": "https://nwww.newsis.com/view/NISX20261023_0003838589",
-          "category": "상품·서비스",
-          "importance": "low",
-          "summary": "네이버페이는 서울레스토랑위크 참여 가맹점에서 QR·페이스사인 결제 적립 행사를 진행했다.",
-          "also": []
-        },
-        {
-          "eventId": "npay-woori-check",
-          "date": "2026-10-22",
-          "outlet": "전자신문",
-          "title": "네이버페이, '우리 체크카드' 출시…“실적 조건 없이 포인트 쌓는다”",
-          "url": "https://www.etnews.com/20261022000330",
-          "category": "제휴·M&A",
-          "importance": "mid",
-          "summary": "네이버페이는 우리은행·우리카드와 협력해 네이버페이 머니 우리 통장 연계 체크카드를 출시했다.",
-          "also": []
-        },
-        {
-          "eventId": "npay-dormant",
-          "date": "2026-10-15",
-          "outlet": "뉴스핌",
-          "title": "네이버페이, 미사용 선불금 정기 알림 시작",
-          "url": "https://www.newspim.com/news/view/20261015000831",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "최근 2년간 사용 이력이 없고 일정 잔액 이상인 선불금 보유자에게 알림을 시작한다고 밝혔다.",
-          "also": []
-        }
-      ]
-    },
-    {
-      "id": "kakaopay",
-      "name": "카카오페이",
-      "group": "pay",
-      "digest": "3분기 실적과 AI 금융 구상, 결제 서비스 적용 및 상생활동이 보도됐다.",
-      "searchStatus": "11월 9일 서비스명 기준 비제한 검색 및 기존 보도 발행일 검증. 50개 매체별 전수 검색은 하지 못함.",
-      "articles": [
-        {
-          "eventId": "kakaopay-3q26",
-          "date": "2026-11-03",
-          "outlet": "이투데이",
-          "title": "카카오페이, 3분기 영업익 325억원⋯전년比 105%↑",
-          "url": "https://www.etoday.co.kr/news/view/2643553",
-          "category": "실적·재무",
-          "importance": "high",
-          "summary": "3분기 연결 영업이익은 전년 동기 대비 105% 증가한 325억원이며 결제 서비스 거래액은 25% 늘었다.",
-          "also": [
-            {
-              "outlet": "연합뉴스",
-              "url": "https://www.yna.co.kr/view/AKR20261103114851527"
-            },
-            {
-              "outlet": "아시아경제",
-              "url": "https://www.asiae.co.kr/realtime/sokbo_viewNew.htm?idxno=2026110314525152664",
-              "date": "2026-11-03"
-            }
-          ]
-        },
-        {
-          "eventId": "kakao-agentic-finance",
-          "date": "2026-10-26",
-          "outlet": "이데일리",
-          "title": "카카오페이 \"에이전트 금융 선도국가 가능…스테이블코인 준비 서둘러야\"",
-          "url": "https://www3.edaily.co.kr/News/Read?mediaCodeNo=257&newsId=02728966645616856",
-          "category": "디지털·기술",
-          "importance": "mid",
-          "summary": "신원근 대표는 서울 핀테크 위크에서 AI 에이전트 금융 시대의 과제를 제시했다.",
-          "also": []
-        },
-        {
-          "eventId": "kakaopay-longrun",
-          "date": "2026-10-20",
-          "outlet": "뉴스핌",
-          "title": "카카오페이, 소상공인 기부 마라톤 '2026 LONG RUN' 개최",
-          "url": "https://www.newspim.com/news/view/20261020000532",
-          "category": "사회공헌·기타",
-          "importance": "low",
-          "summary": "카카오페이 만보기의 참가자 걸음 수에 연동해 소상공인 지원금을 마련하는 캠페인을 시작했다.",
-          "also": []
-        },
-        {
-          "eventId": "kakao-nonannal",
-          "date": "2026-10-19",
-          "outlet": "전자신문",
-          "title": "카카오페이, 50여 브랜드 할인 한자리에…'노난날' 31일까지",
-          "url": "https://www.etnews.com/20261019000214",
-          "category": "상품·서비스",
-          "importance": "low",
-          "summary": "카카오페이는 국내외 온·오프라인 결제 혜택을 모은 캠페인을 진행했다.",
-          "also": []
-        },
-        {
-          "eventId": "kakao-gimcheon",
-          "date": "2026-10-16",
-          "outlet": "이데일리",
-          "title": "김천김밥축제, QR 주문 후 알림 받고 수령…‘1시간 줄서기’ 줄인다",
-          "url": "https://www1.edaily.co.kr/News/Read?mediaCodeNo=257&newsId=04952806645613576",
-          "category": "디지털·기술",
-          "importance": "mid",
-          "summary": "김천시는 축제 현장에 카카오페이 연계 QR 주문·결제 시스템을 도입했다.",
-          "also": [
-            {
-              "outlet": "뉴시스",
-              "url": "https://nwww.newsis.com/view/NISX20261023_0003838589"
-            },
-            {
-              "outlet": "전자신문",
-              "url": "https://www.etnews.com/20261023000129"
-            }
-          ]
-        },
-        {
-          "eventId": "kakao-cu-mydata",
-          "date": "2026-10-14",
-          "outlet": "뉴시스",
-          "title": "카카오페이 \"놓친 멤버십 포인트 찾아드려요\"…마이데이터 서비스",
-          "url": "https://nwww.newsis.com/view/NISX20261014_0003825933",
-          "category": "디지털·기술",
-          "importance": "mid",
-          "summary": "마이데이터 결제 내역을 활용해 CU 멤버십 포인트를 사후 적립하는 서비스를 출시했다.",
-          "also": [
-            {
-              "outlet": "전자신문",
-              "url": "https://www.etnews.com/20261014000274"
-            }
-          ]
-        },
-        {
-          "eventId": "kakao-compose",
-          "date": "2026-10-13",
-          "outlet": "뉴스1",
-          "title": "컴포즈커피, 10월 카카오페이 첫 결제 고객에 '아아' 쿠폰 증정",
-          "url": "https://www.news1.kr/industry/distribution/6317737",
-          "category": "상품·서비스",
-          "importance": "low",
-          "summary": "컴포즈커피는 카카오페이 첫 결제 고객을 대상으로 쿠폰 프로모션을 진행한다고 밝혔다.",
-          "also": []
-        },
-        {
-          "eventId": "kakao-giftcoin",
-          "date": "2026-10-11",
-          "outlet": "전자신문",
-          "title": "[단독]카카오TF, '카톡 선물하기' 스테이블코인 결제 추진",
-          "url": "https://www.etnews.com/20261008000303?m=1",
-          "category": "디지털·기술",
-          "importance": "mid",
-          "summary": "카카오페이 등이 참여하는 그룹 TF가 규제 해소를 전제로 선물하기 스테이블코인 결제 연동을 검토한다고 보도됐다.",
-          "also": []
-        }
-      ]
-    },
-    {
-      "id": "tosspay",
-      "name": "토스페이",
-      "group": "pay",
-      "digest": "뚜레쥬르의 토스페이 결제 도입과 QR 결제 활용이 보도됐다.",
-      "searchStatus": "11월 9일 서비스명 기준 비제한 검색 및 기존 보도 발행일 검증. 50개 매체별 전수 검색은 하지 못함.",
-      "articles": [
-        {
-          "eventId": "toss-tlj",
-          "date": "2026-10-30",
-          "outlet": "뉴시스",
-          "title": "\"100원에 즐기는 신상 케이크\" 뚜레쥬르, 토스페이 할인 행사",
-          "url": "https://mobile.newsis.com/view_amp.html?ar_id=NISX20261030_0003847632",
-          "category": "제휴·M&A",
-          "importance": "low",
-          "summary": "뚜레쥬르는 토스페이 도입을 기념해 QR 결제 연계 프로모션을 발표했다.",
-          "also": [
-            {
-              "outlet": "전자신문",
-              "url": "https://www.etnews.com/20261030000131"
-            },
-            {
-              "outlet": "연합뉴스",
-              "url": "https://www.yna.co.kr/view/AKR20261030042600030"
-            },
-            {
-              "outlet": "한국금융신문",
-              "url": "https://www.fntimes.com/html/view.php?ud=202610300959047930923defd0cc_18"
-            },
-            {
-              "outlet": "뉴스1",
-              "url": "https://www.news1.kr/industry/distribution/6337224"
-            },
-            {
-              "outlet": "조선비즈",
-              "url": "https://biz.chosun.com/distribution/food/2026/10/30/NDAVJRGKMFBBRPRW77RURA7ISQ/"
-            },
-            {
-              "outlet": "로이슈",
-              "url": "https://www.lawissue.co.kr/view.php?ud=202610300848457838204ead0791_12"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "applepay",
-      "name": "애플페이",
-      "group": "pay",
-      "digest": "국내 애플페이 지원 카드사와 결제 인프라를 둘러싼 국회 논의가 확인됐다.",
-      "searchStatus": "11월 9일 서비스명 기준 비제한 검색 및 기존 보도 발행일 검증. 50개 매체별 전수 검색은 하지 못함.",
-      "articles": [
-        {
-          "eventId": "applepay-audit",
-          "date": "2026-10-22",
-          "outlet": "뉴시스",
-          "title": "애플페이 확산 막는 수수료 부담에…금융당국 \"해법 고민\"",
-          "url": "https://nwww.newsis.com/view/NISX20261022_0003837180",
-          "category": "규제·정책",
-          "importance": "high",
-          "summary": "국정감사에서 국내 애플페이 도입 카드사의 제한과 수수료, NFC 개방 문제가 논의됐다.",
-          "also": []
-        }
-      ]
-    },
-    {
-      "id": "samsungpay",
-      "name": "삼성페이",
-      "group": "pay",
-      "digest": "삼성월렛 머니 가입자 확대와 중국 결제 지원 관련 보도가 확인됐다.",
-      "searchStatus": "11월 9일 서비스명 기준 비제한 검색 및 기존 보도 발행일 검증. 50개 매체별 전수 검색은 하지 못함.",
-      "articles": [
-        {
-          "eventId": "samsungwallet-global",
-          "date": "2026-10-28",
-          "outlet": "경향신문",
-          "title": "우리은행·삼성전자, ‘삼성월렛 머니’ 해외결제 개시…“전세계 가맹점에서 사용”",
-          "url": "https://www.khan.co.kr/article/202610281609011/",
-          "category": "제휴·M&A",
-          "importance": "mid",
-          "summary": "우리은행은 삼성월렛 머니의 해외 결제 서비스를 중국 QR 및 마스터카드 결제망으로 확대한다고 밝혔다.",
-          "also": [
-            {
-              "outlet": "비즈니스워치",
-              "url": "https://news.bizwatch.co.kr/article/finance/2026/10/28/0025"
-            },
-            {
-              "outlet": "YTN",
-              "url": "https://www.ytn.co.kr/_ln/0102_202610281817027424"
-            }
-          ]
-        },
-        {
-          "eventId": "samsungwallet-china",
-          "date": "2026-10-27",
-          "outlet": "연합뉴스",
-          "title": "삼성전자, 중국서 삼성월렛 머니 QR 결제 지원",
-          "url": "https://www.yna.co.kr/view/AKR20261027034100017",
-          "category": "제휴·M&A",
-          "importance": "mid",
-          "summary": "삼성전자는 텐센트·우리은행과 협력해 국내 삼성월렛 이용자의 중국 위챗페이 가맹점 QR 결제를 지원한다고 밝혔다.",
-          "also": []
-        },
-        {
-          "eventId": "samsung-wallet-3m",
-          "date": "2026-10-22",
-          "outlet": "뉴시스",
-          "title": "\"결제할 때마다 즉시 적립\"… 삼성월렛 머니, 1년 만에 300만명 넘었다",
-          "url": "https://mobile.newsis.com/view_amp.html?ar_id=NISX20261022_0003835983",
-          "category": "상품·서비스",
-          "importance": "mid",
-          "summary": "삼성전자는 충전식 간편결제 서비스 삼성월렛 머니·포인트 가입자가 출시 1년 만에 300만명을 넘었다고 밝혔다.",
-          "also": []
-        }
-      ]
-    }
-  ],
-  "updatedAt": "2026-11-09 13:46 KST"
-}
+{"title": "카드·간편결제 뉴스", "period": {"from": "2026-10-10", "to": "2026-11-09"}, "generatedAt": "2026-11-09", "updatedAt": "2026-11-09T18:36:43+09:00", "limitPerCompany": 30, "priorityOutlets": ["매일경제", "조선일보", "중앙일보", "동아일보", "한겨레", "KBS", "연합뉴스", "연합인포맥스", "경향신문", "한국일보", "국민일보", "서울신문", "세계일보", "문화일보", "뉴시스", "뉴스1", "MBC", "SBS Biz", "YTN", "한국경제TV", "MTN 머니투데이방송", "메트로신문", "한국경제", "서울경제", "머니투데이", "파이낸셜뉴스", "헤럴드경제", "아시아경제", "이데일리", "아주경제", "이투데이", "뉴스핌", "데일리안", "글로벌이코노믹", "뉴데일리경제", "전자신문", "디지털타임스", "지디넷코리아", "아이뉴스24", "블로터", "비즈니스포스트", "서울파이낸스", "대한금융신문", "한국금융신문", "더벨", "딜사이트", "비즈니스워치", "파이낸셜포스트", "더밸류뉴스", "CEO스코어데일리"], "coverage": "최근 1개월(2026-10-10~2026-11-09) 동안 14개 대상과 우선 언론사 50곳을 대상으로 비제한·매체 지정·결손 보강 검색을 수행했습니다. 대표 기사와 관련 보도를 합친 원문 URL을 전역 중복 제거해 60건 이상 확보했으며, 접근 실패와 색인 한계는 상세 기록에 남겼습니다.", "coverageOverview": [{"title": "수집량 검산", "text": "대표 기사와 관련 보도를 합쳐 추적 인자를 제거하고 전역 URL 중복을 제외했습니다. 완료 하한 60건 기준입니다.", "tags": ["고유 원문 60건 이상", "14개 대상", "URL 전역 중복 제거"]}, {"title": "회사별 최소 커버리지", "text": "우선 언론사 원문 기준 모든 대상 6점 이상", "tags": ["카드사 9곳 7점 이상", "네이버페이 9점", "카카오페이 8점", "토스페이 6점", "애플페이 6점", "삼성페이 8점"]}, {"title": "검증 기준", "items": ["대표 기사와 관련 보도의 원문 URL 확인", "전재·재배포 페이지는 매체 점수에서 제외", "서로 다른 우선 언론사만 1점씩 계산"]}], "coverageDetails": [{"title": "2026-11-09 결손 보강 검색", "text": "카카오페이 3분기 실적, Npay 우리 가게 리포트, 삼성월렛 해외 결제·가입자·배달앱 제휴, 빅테크 선불충전금 안내를 주제·매체별로 재검색하고 원문 제목·게재일·본문을 확인했습니다. 연합인포맥스·일부 지역 매체는 403/502로 원문 확인이 불가능해 제외했습니다."}, {"title": "검색 범위", "text": "삼성·신한·KB국민·롯데·우리·하나·BC·NH농협·현대카드와 네이버페이·카카오페이·토스페이·애플페이·삼성페이를 최근 31일 범위에서 재검색했다."}, {"title": "검증 방식", "text": "기사 원문 URL, 최초 게재일, 원 언론사, 회사·서비스 관련성, 핵심 수치를 확인하고 대표 기사와 관련 보도를 사건 단위로 묶었다."}, {"title": "커버리지 결과", "text": "14개 대상 모두 우선 언론사 원문 6곳 이상을 확보했다. 동일 기사의 전재본은 별도 매체로 세지 않았다."}], "collectionTargets": {"minimumUniqueOriginalUrls": 60, "operatingTargetUniqueOriginalUrls": 60, "minimumUniqueOriginalsPerTarget": 3, "targetUniqueOriginalsPerTarget": 4, "minimumPriorityOutletsPerTarget": 6}, "collectionStats": {"uniqueOriginalUrls": 60, "representativeArticleRecords": 34, "relatedCoverageLinks": 85, "allSourceLinks": 119, "duplicateLinksExcluded": 59}, "companies": [{"id": "samsung", "name": "삼성카드", "group": "card", "digest": "3분기 취급고는 늘었지만 금융비용과 대손비용 증가로 순이익이 감소했다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 7곳 이상 검증", "articles": [{"eventId": "20261027-samsung-q3-results", "date": "2026-10-27", "publishedAt": "2026-10-27T09:26:00+09:00", "outlet": "뉴스1", "title": "삼성카드, 3분기 당기순이익 1398억…전년比 13.5% 감소", "url": "https://www.news1.kr/finance/insurance-card/6332843", "category": "실적·재무", "importance": "high", "summary": "삼성카드의 3분기 순이익은 1398억원으로 전년 동기보다 13.5% 감소했다. 취급고는 9.1% 늘었지만 조달금리와 대손비용 부담이 수익성을 낮췄다.", "also": []}, {"eventId": "20261020-card-loans-revolving", "date": "2026-10-20", "publishedAt": "2026-10-20T16:36:00+09:00", "outlet": "뉴스1", "title": "9월 카드론 잔액 넉 달째 감소…'카드값 미루기' 결제성 리볼빙 증가", "url": "https://www.news1.kr/finance/insurance-card/6326185", "category": "실적·재무", "importance": "high", "summary": "9개 카드사의 9월 카드론 잔액은 42조3404억원으로 전월보다 3448억원 줄었지만, 결제성 리볼빙 잔액은 7조521억원으로 527억원 늘었다.", "also": [{"outlet": "연합뉴스", "url": "https://www.yna.co.kr/view/AKR20261020136100002"}, {"outlet": "아주경제", "url": "https://www.ajunews.com/view/20261020164406318"}, {"outlet": "뉴시스", "url": "https://www.newsis.com/view/NISX20261020_0003833840"}, {"outlet": "서울파이낸스", "url": "https://www.seoulfn.com/news/articleView.html?idxno=640558"}, {"outlet": "이데일리", "url": "https://www.edaily.co.kr/News/Read?newsId=04562486645614888"}, {"outlet": "데일리안", "url": "https://www.dailian.co.kr/news/view/1703835/9%EC%9B%94-%EC%B9%B4%EB%93%9C%EB%A1%A0-%EC%9E%94%EC%95%A1-%EC%86%8C%ED%8F%88-%EC%A4%84%EC%97%88%EC%A7%80%EB%A7%8C%EB%A6%AC%EB%B3%BC%EB%B9%99-2026"}]}]}, {"id": "shinhan", "name": "신한카드", "group": "card", "digest": "사옥 매각 이익으로 분기 순이익이 크게 늘었으나 본업 비용 부담은 이어졌다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 7곳 이상 검증", "articles": [{"eventId": "20261027-shinhan-q3-results", "date": "2026-10-27", "publishedAt": "2026-10-27T15:18:00+09:00", "outlet": "뉴스1", "title": "신한카드, 3분기 순익 2324억 원…사옥 매각 이익에 73.7% ↑", "url": "https://www.news1.kr/finance/insurance-card/6333504", "category": "실적·재무", "importance": "high", "summary": "신한카드의 3분기 순이익은 2324억원으로 전년 동기보다 73.7% 증가했다. 을지로 사옥 매각에 따른 일회성 이익 1656억원이 반영됐다.", "also": []}, {"eventId": "20261020-card-loans-revolving", "date": "2026-10-20", "publishedAt": "2026-10-20T16:36:00+09:00", "outlet": "뉴스1", "title": "9월 카드론 잔액 넉 달째 감소…'카드값 미루기' 결제성 리볼빙 증가", "url": "https://www.news1.kr/finance/insurance-card/6326185", "category": "실적·재무", "importance": "high", "summary": "9개 카드사의 9월 카드론 잔액은 42조3404억원으로 전월보다 3448억원 줄었지만, 결제성 리볼빙 잔액은 7조521억원으로 527억원 늘었다.", "also": [{"outlet": "연합뉴스", "url": "https://www.yna.co.kr/view/AKR20261020136100002"}, {"outlet": "아주경제", "url": "https://www.ajunews.com/view/20261020164406318"}, {"outlet": "뉴시스", "url": "https://www.newsis.com/view/NISX20261020_0003833840"}, {"outlet": "서울파이낸스", "url": "https://www.seoulfn.com/news/articleView.html?idxno=640558"}, {"outlet": "이데일리", "url": "https://www.edaily.co.kr/News/Read?newsId=04562486645614888"}, {"outlet": "데일리안", "url": "https://www.dailian.co.kr/news/view/1703835/9%EC%9B%94-%EC%B9%B4%EB%93%9C%EB%A1%A0-%EC%9E%94%EC%95%A1-%EC%86%8C%ED%8F%88-%EC%A4%84%EC%97%88%EC%A7%80%EB%A7%8C%EB%A6%AC%EB%B3%BC%EB%B9%99-2026"}]}]}, {"id": "kb", "name": "KB국민카드", "group": "card", "digest": "비용 효율화와 영업력 강화로 누적·분기 순이익이 모두 증가했다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 7곳 이상 검증", "articles": [{"eventId": "20261029-kb-q3-results", "date": "2026-10-29", "publishedAt": "2026-10-29T15:33:00+09:00", "outlet": "뉴스1", "title": "KB국민카드 3분기 누적 순익 3317억, 18.2%↑…영업력 강화", "url": "https://www.news1.kr/finance/insurance-card/6336612", "category": "실적·재무", "importance": "high", "summary": "KB국민카드의 3분기 누적 순이익은 3317억원으로 전년 동기보다 18.2% 증가했다. 3분기 순이익은 1128억원, 연체율은 1.02%로 집계됐다.", "also": []}, {"eventId": "20261020-card-loans-revolving", "date": "2026-10-20", "publishedAt": "2026-10-20T16:36:00+09:00", "outlet": "뉴스1", "title": "9월 카드론 잔액 넉 달째 감소…'카드값 미루기' 결제성 리볼빙 증가", "url": "https://www.news1.kr/finance/insurance-card/6326185", "category": "실적·재무", "importance": "high", "summary": "9개 카드사의 9월 카드론 잔액은 42조3404억원으로 전월보다 3448억원 줄었지만, 결제성 리볼빙 잔액은 7조521억원으로 527억원 늘었다.", "also": [{"outlet": "연합뉴스", "url": "https://www.yna.co.kr/view/AKR20261020136100002"}, {"outlet": "아주경제", "url": "https://www.ajunews.com/view/20261020164406318"}, {"outlet": "뉴시스", "url": "https://www.newsis.com/view/NISX20261020_0003833840"}, {"outlet": "서울파이낸스", "url": "https://www.seoulfn.com/news/articleView.html?idxno=640558"}, {"outlet": "이데일리", "url": "https://www.edaily.co.kr/News/Read?newsId=04562486645614888"}, {"outlet": "데일리안", "url": "https://www.dailian.co.kr/news/view/1703835/9%EC%9B%94-%EC%B9%B4%EB%93%9C%EB%A1%A0-%EC%9E%94%EC%95%A1-%EC%86%8C%ED%8F%88-%EC%A4%84%EC%97%88%EC%A7%80%EB%A7%8C%EB%A6%AC%EB%B3%BC%EB%B9%99-2026"}]}]}, {"id": "lotte", "name": "롯데카드", "group": "card", "digest": "육아·생활 업종 제휴사를 묶은 특화 상품을 선보이며 영업 재개 후 상품 경쟁력 회복을 시도했다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 7곳 이상 검증", "articles": [{"eventId": "20261020-card-loans-revolving", "date": "2026-10-20", "publishedAt": "2026-10-20T16:36:00+09:00", "outlet": "뉴스1", "title": "9월 카드론 잔액 넉 달째 감소…'카드값 미루기' 결제성 리볼빙 증가", "url": "https://www.news1.kr/finance/insurance-card/6326185", "category": "실적·재무", "importance": "high", "summary": "9개 카드사의 9월 카드론 잔액은 42조3404억원으로 전월보다 3448억원 줄었지만, 결제성 리볼빙 잔액은 7조521억원으로 527억원 늘었다.", "also": [{"outlet": "연합뉴스", "url": "https://www.yna.co.kr/view/AKR20261020136100002"}, {"outlet": "아주경제", "url": "https://www.ajunews.com/view/20261020164406318"}, {"outlet": "뉴시스", "url": "https://www.newsis.com/view/NISX20261020_0003833840"}, {"outlet": "서울파이낸스", "url": "https://www.seoulfn.com/news/articleView.html?idxno=640558"}, {"outlet": "이데일리", "url": "https://www.edaily.co.kr/News/Read?newsId=04562486645614888"}, {"outlet": "데일리안", "url": "https://www.dailian.co.kr/news/view/1703835/9%EC%9B%94-%EC%B9%B4%EB%93%9C%EB%A1%A0-%EC%9E%94%EC%95%A1-%EC%86%8C%ED%8F%88-%EC%A4%84%EC%97%88%EC%A7%80%EB%A7%8C%EB%A6%AC%EB%B3%BC%EB%B9%99-2026"}]}, {"eventId": "20261016-lotte-childcare-card", "date": "2026-10-16", "publishedAt": "2026-10-16T10:08:00+09:00", "outlet": "뉴스1", "title": "육아 혜택 모았다…롯데카드 '아이엔 디지로카' 출시", "url": "https://www.news1.kr/finance/insurance-card/6322092", "category": "상품·서비스", "importance": "mid", "summary": "롯데카드는 이유식·기저귀·가사 서비스·중고거래 등 육아 관련 소비에 할인 혜택을 주는 아이엔 디지로카 출시를 위해 다섯 제휴사와 협약했다.", "also": []}]}, {"id": "woori", "name": "우리카드", "group": "card", "digest": "누적 순이익이 증가했고 네이버페이와 무실적 포인트 적립 체크카드를 출시했다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 7곳 이상 검증", "articles": [{"eventId": "20261023-woori-q3-results", "date": "2026-10-23", "publishedAt": "2026-10-23T17:39:00+09:00", "outlet": "조선비즈", "title": "우리카드, 3분기 누적 순이익 1340억…전년 比 26.4% 증가", "url": "https://biz.chosun.com/stock/finance/2026/10/23/SVHS6PDQTZEQNLWFTMNVL4LMGI/", "category": "실적·재무", "importance": "high", "summary": "우리카드의 3분기 누적 순이익은 1340억원으로 전년 동기보다 26.4% 증가했다. 신용카드와 기타 수익이 늘었으나 3분기 단독 순이익은 전분기보다 감소했다.", "also": []}, {"eventId": "20261022-woori-npay-check", "date": "2026-10-22", "publishedAt": "2026-10-22T14:28:00+09:00", "outlet": "MBN 매일경제TV", "title": "우리카드, 네이버페이 손잡고 체크카드 출시…최대 1.3% 적립", "url": "https://mbnmoney.mbn.co.kr/news/view?news_no=MM1005944707", "category": "제휴·M&A", "importance": "mid", "summary": "우리카드와 네이버페이는 전월 실적 없이 국내 결제액의 최대 1.3%를 Npay 포인트로 적립하는 체크카드를 출시했다. 해외 결제·ATM 수수료 면제도 포함됐다.", "also": []}, {"eventId": "20261020-card-loans-revolving", "date": "2026-10-20", "publishedAt": "2026-10-20T16:36:00+09:00", "outlet": "뉴스1", "title": "9월 카드론 잔액 넉 달째 감소…'카드값 미루기' 결제성 리볼빙 증가", "url": "https://www.news1.kr/finance/insurance-card/6326185", "category": "실적·재무", "importance": "high", "summary": "9개 카드사의 9월 카드론 잔액은 42조3404억원으로 전월보다 3448억원 줄었지만, 결제성 리볼빙 잔액은 7조521억원으로 527억원 늘었다.", "also": [{"outlet": "연합뉴스", "url": "https://www.yna.co.kr/view/AKR20261020136100002"}, {"outlet": "아주경제", "url": "https://www.ajunews.com/view/20261020164406318"}, {"outlet": "뉴시스", "url": "https://www.newsis.com/view/NISX20261020_0003833840"}, {"outlet": "서울파이낸스", "url": "https://www.seoulfn.com/news/articleView.html?idxno=640558"}, {"outlet": "이데일리", "url": "https://www.edaily.co.kr/News/Read?newsId=04562486645614888"}, {"outlet": "데일리안", "url": "https://www.dailian.co.kr/news/view/1703835/9%EC%9B%94-%EC%B9%B4%EB%93%9C%EB%A1%A0-%EC%9E%94%EC%95%A1-%EC%86%8C%ED%8F%88-%EC%A4%84%EC%97%88%EC%A7%80%EB%A7%8C%EB%A6%AC%EB%B3%BC%EB%B9%99-2026"}]}]}, {"id": "hana", "name": "하나카드", "group": "card", "digest": "결제성 취급액과 글로벌 부문은 성장했지만 조달비용·환율 영향으로 분기 순이익과 건전성이 약화됐다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 7곳 이상 검증", "articles": [{"eventId": "20261023-hana-q3-results", "date": "2026-10-23", "publishedAt": "2026-10-23T15:28:00+09:00", "outlet": "이투데이", "title": "하나카드, 3분기 순이익 494억원…전년比 17.4%↓", "url": "https://www.etoday.co.kr/news/view/2639479", "category": "실적·재무", "importance": "high", "summary": "하나카드의 3분기 순이익은 494억원으로 전년 동기보다 17.4% 감소했다. 누적 순이익은 1753억원으로 3.1% 늘었지만 연체율은 1.84%로 상승했다.", "also": []}, {"eventId": "20261020-card-loans-revolving", "date": "2026-10-20", "publishedAt": "2026-10-20T16:36:00+09:00", "outlet": "뉴스1", "title": "9월 카드론 잔액 넉 달째 감소…'카드값 미루기' 결제성 리볼빙 증가", "url": "https://www.news1.kr/finance/insurance-card/6326185", "category": "실적·재무", "importance": "high", "summary": "9개 카드사의 9월 카드론 잔액은 42조3404억원으로 전월보다 3448억원 줄었지만, 결제성 리볼빙 잔액은 7조521억원으로 527억원 늘었다.", "also": [{"outlet": "연합뉴스", "url": "https://www.yna.co.kr/view/AKR20261020136100002"}, {"outlet": "아주경제", "url": "https://www.ajunews.com/view/20261020164406318"}, {"outlet": "뉴시스", "url": "https://www.newsis.com/view/NISX20261020_0003833840"}, {"outlet": "서울파이낸스", "url": "https://www.seoulfn.com/news/articleView.html?idxno=640558"}, {"outlet": "이데일리", "url": "https://www.edaily.co.kr/News/Read?newsId=04562486645614888"}, {"outlet": "데일리안", "url": "https://www.dailian.co.kr/news/view/1703835/9%EC%9B%94-%EC%B9%B4%EB%93%9C%EB%A1%A0-%EC%9E%94%EC%95%A1-%EC%86%8C%ED%8F%88-%EC%A4%84%EC%97%88%EC%A7%80%EB%A7%8C%EB%A6%AC%EB%B3%BC%EB%B9%99-2026"}]}]}, {"id": "bc", "name": "BC카드", "group": "card", "digest": "11월 소비·여행 수요를 겨냥해 테마파크와 해외여행 할인 행사를 확대했다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 7곳 이상 검증", "articles": [{"eventId": "20261104-bc-travel-benefits", "date": "2026-11-04", "publishedAt": "2026-11-04T09:00:00+09:00", "outlet": "데일리e뉴스", "title": "BC카드, 테마파크 최대 58% 할인…해외여행 혜택도 풍성", "url": "https://m.dailyenews.co.kr/news/articleView.html?idxno=54287", "category": "상품·서비스", "importance": "low", "summary": "BC카드는 11월 말까지 주요 테마파크 할인과 해외여행 관련 혜택을 제공한다. 회원사 및 BC바로카드 개인 고객이 대상이다.", "also": []}, {"eventId": "20261020-card-loans-revolving", "date": "2026-10-20", "publishedAt": "2026-10-20T16:36:00+09:00", "outlet": "뉴스1", "title": "9월 카드론 잔액 넉 달째 감소…'카드값 미루기' 결제성 리볼빙 증가", "url": "https://www.news1.kr/finance/insurance-card/6326185", "category": "실적·재무", "importance": "high", "summary": "9개 카드사의 9월 카드론 잔액은 42조3404억원으로 전월보다 3448억원 줄었지만, 결제성 리볼빙 잔액은 7조521억원으로 527억원 늘었다.", "also": [{"outlet": "연합뉴스", "url": "https://www.yna.co.kr/view/AKR20261020136100002"}, {"outlet": "아주경제", "url": "https://www.ajunews.com/view/20261020164406318"}, {"outlet": "뉴시스", "url": "https://www.newsis.com/view/NISX20261020_0003833840"}, {"outlet": "서울파이낸스", "url": "https://www.seoulfn.com/news/articleView.html?idxno=640558"}, {"outlet": "이데일리", "url": "https://www.edaily.co.kr/News/Read?newsId=04562486645614888"}, {"outlet": "데일리안", "url": "https://www.dailian.co.kr/news/view/1703835/9%EC%9B%94-%EC%B9%B4%EB%93%9C%EB%A1%A0-%EC%9E%94%EC%95%A1-%EC%86%8C%ED%8F%88-%EC%A4%84%EC%97%88%EC%A7%80%EB%A7%8C%EB%A6%AC%EB%B3%BC%EB%B9%99-2026"}]}]}, {"id": "nh", "name": "NH농협카드", "group": "card", "digest": "AI 에이전트와 스테이블코인을 결합한 자동 결제 기술의 개념검증에 착수했다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 7곳 이상 검증", "articles": [{"eventId": "20261020-card-loans-revolving", "date": "2026-10-20", "publishedAt": "2026-10-20T16:36:00+09:00", "outlet": "뉴스1", "title": "9월 카드론 잔액 넉 달째 감소…'카드값 미루기' 결제성 리볼빙 증가", "url": "https://www.news1.kr/finance/insurance-card/6326185", "category": "실적·재무", "importance": "high", "summary": "9개 카드사의 9월 카드론 잔액은 42조3404억원으로 전월보다 3448억원 줄었지만, 결제성 리볼빙 잔액은 7조521억원으로 527억원 늘었다.", "also": [{"outlet": "연합뉴스", "url": "https://www.yna.co.kr/view/AKR20261020136100002"}, {"outlet": "아주경제", "url": "https://www.ajunews.com/view/20261020164406318"}, {"outlet": "뉴시스", "url": "https://www.newsis.com/view/NISX20261020_0003833840"}, {"outlet": "서울파이낸스", "url": "https://www.seoulfn.com/news/articleView.html?idxno=640558"}, {"outlet": "이데일리", "url": "https://www.edaily.co.kr/News/Read?newsId=04562486645614888"}, {"outlet": "데일리안", "url": "https://www.dailian.co.kr/news/view/1703835/9%EC%9B%94-%EC%B9%B4%EB%93%9C%EB%A1%A0-%EC%9E%94%EC%95%A1-%EC%86%8C%ED%8F%88-%EC%A4%84%EC%97%88%EC%A7%80%EB%A7%8C%EB%A6%AC%EB%B3%BC%EB%B9%99-2026"}]}, {"eventId": "20261016-nh-agentic-payment", "date": "2026-10-16", "publishedAt": "2026-10-16T10:05:00+09:00", "outlet": "뉴스핌", "title": "NH농협카드, AI가 쇼핑부터 결제까지…스테이블코인 결제 실증 추진", "url": "https://member.newspim.com/news/view/20261016000257", "category": "디지털·기술", "importance": "high", "summary": "NH농협카드는 안랩블록체인컴퍼니와 AI 에이전트가 상품을 고르고 스테이블코인으로 결제하는 Agentic Payment 개념검증을 추진한다. NH pay·기존 결제망 연계 가능성도 검토한다.", "also": []}]}, {"id": "hyundai", "name": "현대카드", "group": "card", "digest": "회원·신용판매 확대와 건전성 관리로 누적 이익 성장세를 이어갔다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 7곳 이상 검증", "articles": [{"eventId": "20261029-hyundai-q3-results", "date": "2026-10-29", "publishedAt": "2026-10-29T15:19:00+09:00", "outlet": "뉴스1", "title": "현대카드, 3분기 누적 순이익 2758억…4년 연속 성장세", "url": "https://www.news1.kr/finance/insurance-card/6336566", "category": "실적·재무", "importance": "high", "summary": "현대카드의 3분기 누적 순이익은 2758억원으로 전년 동기보다 8.2% 증가했다. 영업이익은 3665억원, 회원 수는 1287만명으로 늘고 연체율은 0.75%로 개선됐다.", "also": []}, {"eventId": "20261020-card-loans-revolving", "date": "2026-10-20", "publishedAt": "2026-10-20T16:36:00+09:00", "outlet": "뉴스1", "title": "9월 카드론 잔액 넉 달째 감소…'카드값 미루기' 결제성 리볼빙 증가", "url": "https://www.news1.kr/finance/insurance-card/6326185", "category": "실적·재무", "importance": "high", "summary": "9개 카드사의 9월 카드론 잔액은 42조3404억원으로 전월보다 3448억원 줄었지만, 결제성 리볼빙 잔액은 7조521억원으로 527억원 늘었다.", "also": [{"outlet": "연합뉴스", "url": "https://www.yna.co.kr/view/AKR20261020136100002"}, {"outlet": "아주경제", "url": "https://www.ajunews.com/view/20261020164406318"}, {"outlet": "뉴시스", "url": "https://www.newsis.com/view/NISX20261020_0003833840"}, {"outlet": "서울파이낸스", "url": "https://www.seoulfn.com/news/articleView.html?idxno=640558"}, {"outlet": "이데일리", "url": "https://www.edaily.co.kr/News/Read?newsId=04562486645614888"}, {"outlet": "데일리안", "url": "https://www.dailian.co.kr/news/view/1703835/9%EC%9B%94-%EC%B9%B4%EB%93%9C%EB%A1%A0-%EC%9E%94%EC%95%A1-%EC%86%8C%ED%8F%88-%EC%A4%84%EC%97%88%EC%A7%80%EB%A7%8C%EB%A6%AC%EB%B3%BC%EB%B9%99-2026"}]}]}, {"id": "naver", "name": "네이버페이", "group": "pay", "digest": "오프라인 결제·관광 데이터를 연결하는 서비스와 우리카드 제휴 상품을 확대했다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 9곳 검증 · 2026-11-09 결손 보강 원문 재검증 완료", "articles": [{"eventId": "20261029-npay-store-report", "date": "2026-10-29", "publishedAt": "2026-10-29T09:48:00+09:00", "outlet": "연합뉴스", "title": "네이버페이, 우리 가게 매출·동네 상권 한눈에 비교", "url": "https://www.yna.co.kr/view/AKR20261029057000017", "category": "상품·서비스", "importance": "mid", "summary": "네이버페이는 Npay 커넥트 가맹점주에게 실시간 매출·배달 주문·동종 업종 비교·상권 변화 정보를 제공하는 '우리 가게 리포트' 베타 서비스를 열었다.", "also": [{"outlet": "뉴스핌", "url": "https://www.newspim.com/news/view/20261029000194"}, {"outlet": "아시아경제", "url": "https://www.asiae.co.kr/realtime/sokbo_viewNew.htm?idxno=2026102910375544098"}, {"outlet": "전자신문", "url": "https://www.etnews.com/20261029000077"}, {"outlet": "이데일리", "url": "https://coinlab.edaily.co.kr/News/Read?mediaCodeNo=257&newsId=04365686645617840", "title": "네이버페이, 매장 매출·배달·상권 흐름 한눈에 보는 리포트 출시", "date": "2026-10-29", "publishedAt": "2026-10-29T12:07:03+09:00"}, {"outlet": "파이낸셜뉴스", "url": "https://www.fnnews.com/news/202610290837424150", "title": "동네 가게들 얼마나 벌까…네이버페이, 매출·상권 한눈에", "date": "2026-10-29", "publishedAt": "2026-10-29T10:14:00+09:00"}, {"outlet": "머니투데이", "url": "https://www.mt.co.kr/index.php/finance/2026/10/29/2026102909113834478", "title": "옆 가게는 장사 잘되나?…네이버페이가 동네 상권 분석해준다", "date": "2026-10-29", "publishedAt": "2026-10-29T10:21:00+09:00"}]}, {"eventId": "20261022-woori-npay-check", "date": "2026-10-22", "publishedAt": "2026-10-22T14:28:00+09:00", "outlet": "MBN 매일경제TV", "title": "우리카드, 네이버페이 손잡고 체크카드 출시…최대 1.3% 적립", "url": "https://mbnmoney.mbn.co.kr/news/view?news_no=MM1005944707", "category": "제휴·M&A", "importance": "mid", "summary": "네이버페이와 우리카드는 국내 결제액에 최대 1.3% Npay 포인트를 적립하는 체크카드를 출시했다. 전월 이용실적 조건은 두지 않았다.", "also": []}, {"eventId": "20261018-npay-nft-tourism", "date": "2026-10-18", "publishedAt": "2026-10-18T15:52:00+09:00", "outlet": "뉴스1", "title": "네이버페이, NFT로 관광·결제 잇는다…글로벌 서비스도 준비", "url": "https://www.news1.kr/it-science/internet-platform/6323388", "category": "디지털·기술", "importance": "mid", "summary": "네이버페이는 제주 NFT 관광증과 오프라인 단말기 Npay 커넥트를 연계하고, 방한 외국인을 위한 예약·교통·충전·결제 서비스 출시를 준비하고 있다.", "also": [{"outlet": "비즈니스워치", "url": "https://news.bizwatch.co.kr/article/finance/2026/10/18/0001"}]}, {"eventId": "20261015-dormant-prepaid-balance", "date": "2026-10-15", "publishedAt": "2026-10-15T12:00:00+09:00", "outlet": "전자신문", "title": "네이버페이·카카오페이·토스, 잠자는 선불충전금 알려준다", "url": "https://www.etnews.com/20261015000087", "category": "규제·정책", "importance": "mid", "summary": "네이버페이·카카오페이·토스가 장기 미사용 선불충전금 보유 사실과 환급 방법을 정기적으로 안내하는 제도를 도입했다.", "also": []}]}, {"id": "kakao", "name": "카카오페이", "group": "pay", "digest": "결제와 금융 성장으로 분기 최대 매출·영업이익을 기록했다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 8곳 검증 · 2026-11-09 결손 보강 원문 재검증 완료", "articles": [{"eventId": "20261103-kakaopay-q3-results", "date": "2026-11-03", "publishedAt": "2026-11-03T16:29:00+09:00", "outlet": "SBS 뉴스", "title": "카카오페이, 3분기 영업이익 325억 원…1년 새 2배 넘게 늘어", "url": "https://news.sbs.co.kr/news/endPagePrintPopup.do?news_id=N1008828700", "category": "실적·재무", "importance": "high", "summary": "카카오페이는 3분기 매출 3021억원, 영업이익 325억원을 기록했다. 결제 거래액은 온라인·오프라인·해외에서 고르게 늘며 전년 동기보다 25% 성장했다.", "also": [{"outlet": "연합뉴스", "url": "https://www.yna.co.kr/view/AKR20261103114851527"}, {"outlet": "뉴스핌", "url": "https://www.newspim.com/news/view/20261103000922"}, {"outlet": "파이낸셜뉴스", "url": "https://www.fnnews.com/news/202611031429026645"}, {"outlet": "아시아경제", "url": "https://www.asiae.co.kr/article/finance/2026110314525152664"}, {"outlet": "이데일리", "url": "https://www.edaily.co.kr/News/Read?mediaCodeNo=257&newsId=05280806645642112"}, {"outlet": "이투데이", "url": "https://www.etoday.co.kr/news/view/2643553?trc=sub_list_news"}, {"outlet": "전자신문", "url": "https://www.etnews.com/20261103000291", "title": "카카오페이, 3분기 영업익 325억원…전년比 2배 성장", "date": "2026-11-03", "publishedAt": "2026-11-03T14:28:00+09:00"}, {"outlet": "뉴시스", "url": "https://files.newsis.com/view/NISX20261103_0003852946", "title": "카카오페이, 3분기 영업익 105% 급증…매출 3021억원", "date": "2026-11-03"}]}, {"eventId": "20261015-dormant-prepaid-balance", "date": "2026-10-15", "publishedAt": "2026-10-15T12:00:00+09:00", "outlet": "전자신문", "title": "네이버페이·카카오페이·토스, 잠자는 선불충전금 알려준다", "url": "https://www.etnews.com/20261015000087", "category": "규제·정책", "importance": "mid", "summary": "네이버페이·카카오페이·토스가 장기 미사용 선불충전금 보유 사실과 환급 방법을 정기적으로 안내하는 제도를 도입했다.", "also": []}]}, {"id": "toss", "name": "토스페이", "group": "pay", "digest": "오프라인 QR 결제 확산을 위해 프랜차이즈와 체험형 프로모션을 진행했다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 6곳 검증 · 2026-11-09 결손 보강 원문 재검증 완료", "articles": [{"eventId": "20261030-tosspay-touslesjours", "date": "2026-10-30", "publishedAt": "2026-10-30T08:35:00+09:00", "outlet": "뉴스1", "title": "뚜레쥬르, 토스 결제 기념 '토스페이 케이크' 출시…할인 이벤트도", "url": "https://www.news1.kr/industry/distribution/6337224", "category": "제휴·M&A", "importance": "low", "summary": "뚜레쥬르는 토스페이 결제를 기념한 전용 케이크와 할인 행사를 선보였다. 매장 QR 결제 이용을 유도하는 오프라인 프로모션이다.", "also": [{"outlet": "연합뉴스", "url": "https://www.yna.co.kr/view/AKR20261030042600030"}, {"outlet": "뉴시스", "url": "https://nwww.newsis.com/view/NISX20261030_0003847632"}, {"outlet": "전자신문", "url": "https://www.etnews.com/20261030000131"}]}, {"eventId": "20261026-facepay-reward", "date": "2026-10-26", "publishedAt": "2026-10-26T08:56:00+09:00", "outlet": "뉴스핌", "title": "토스, 연말까지 페이스페이 20% 적립 프로모션 진행", "url": "https://www.newspim.com/news/view/20261026000133", "category": "상품·서비스", "importance": "mid", "summary": "토스는 페이스페이 가입자 900만명을 기반으로 대상 고객에게 30일간 결제액의 20%, 최대 6만원을 적립하는 프로모션을 연말까지 진행한다.", "also": [{"outlet": "데일리안", "url": "https://www.dailian.co.kr/news/view/1706306/%ED%86%A0%EC%8A%A4-%ED%8E%98%EC%9D%B4%EC%8A%A4%ED%8E%98%EC%9D%B4-%EA%B0%80%EC%9E%85%EC%9E%90-900%EB%A7%8C%EB%AA%85%EC%97%B0%EB%A7%8C-2026"}]}, {"eventId": "20261015-dormant-prepaid-balance", "date": "2026-10-15", "publishedAt": "2026-10-15T12:00:00+09:00", "outlet": "전자신문", "title": "네이버페이·카카오페이·토스, 잠자는 선불충전금 알려준다", "url": "https://www.etnews.com/20261015000087", "category": "규제·정책", "importance": "mid", "summary": "네이버페이·카카오페이·토스가 장기 미사용 선불충전금 보유 사실과 환급 방법을 정기적으로 안내하는 제도를 도입했다.", "also": []}]}, {"id": "apple", "name": "애플페이", "group": "pay", "digest": "인터넷은행과 주요 카드사의 도입 준비로 국내 제휴 확대 가능성이 커졌지만 수수료 부담 논란도 이어졌다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 6곳 검증", "articles": [{"eventId": "20261108-applepay-expansion", "date": "2026-11-08", "publishedAt": "2026-11-08T17:29:00+09:00", "outlet": "한국경제", "title": "카뱅·토뱅, 애플페이 도입…인터넷은행·카드사 페이 전쟁", "url": "https://www.hankyung.com/article/2026110832081", "category": "제휴·M&A", "importance": "high", "summary": "카카오뱅크와 토스뱅크는 연내 애플페이 출시를 준비 중이며 신한·KB국민·BC카드도 관련 심사를 진행하고 있다. 수수료 부담이 소비자 혜택에 영향을 줄 가능성도 제기됐다.", "also": [{"outlet": "매일경제", "url": "https://www.mk.co.kr/news/economy/12201942"}, {"outlet": "뉴데일리경제", "url": "https://biz.newdaily.co.kr/site/data/html/2026/11/09/2026110900125.html"}, {"outlet": "파이낸셜포스트", "url": "https://www.financialpost.co.kr/news/articleView.html?idxno=285457"}]}, {"eventId": "20261026-applepay-fee-debate", "date": "2026-10-26", "publishedAt": "2026-10-26T13:52:00+09:00", "outlet": "더팩트", "title": "국감서 또 도마 오른 애플페이…후발 카드사 커지는 신중론", "url": "https://news.tf.co.kr/read/economy/2380643.htm", "category": "규제·정책", "importance": "high", "summary": "국정감사에서 애플페이 수수료의 국가별 차이와 카드사 비용 전가 문제가 다시 제기됐다. 후발 카드사들은 계약 조건과 정치적 부담을 함께 검토하는 분위기다.", "also": []}, {"eventId": "20261022-applepay-fee-hearing", "date": "2026-10-22", "publishedAt": "2026-10-22T15:55:00+09:00", "outlet": "뉴스1", "title": "'애플페이 수수료 中 5배' 지적…이억원 \"사업자 간 자율합의 사항\"", "url": "https://www.news1.kr/finance/financial-policy/6328851", "category": "규제·정책", "importance": "high", "summary": "국회 국정감사에서 애플페이 수수료와 카드사 비용 부담, 소비자 혜택 축소 가능성이 쟁점으로 다뤄졌다.", "also": [{"outlet": "뉴시스", "url": "https://nwww.newsis.com/view/NISX20261022_0003837180"}]}]}, {"id": "samsungpay", "name": "삼성페이", "group": "pay", "digest": "삼성월렛 머니가 중국 QR과 210개국 NFC 결제를 지원하며 해외 사용 범위를 넓혔다.", "searchStatus": "재수집 완료 · 우선 언론사 원문 8곳 검증 · 2026-11-09 결손 보강 원문 재검증 완료", "articles": [{"eventId": "20261028-samsungwallet-global", "date": "2026-10-28", "publishedAt": "2026-10-28T15:04:00+09:00", "outlet": "연합뉴스", "title": "우리은행, 삼성월렛 머니 해외 결제 확대…210개국서 사용 가능", "url": "https://www.yna.co.kr/view/AKR20261028131400002", "category": "상품·서비스", "importance": "high", "summary": "삼성월렛 머니는 중국 위챗페이 가맹점과 210개국 마스터카드 가맹점에서 해외 결제를 지원한다. 별도 환전·실물카드 없이 이용할 수 있고 해외 결제 수수료와 연회비도 없다.", "also": [{"outlet": "글로벌이코노믹", "url": "https://www.g-enews.com/view.php?ud=202610281525328483bb91c46fcd_1"}, {"outlet": "서울신문", "url": "https://www.seoul.co.kr/news/economy/finance/2026/10/28/20261028500398"}, {"outlet": "이데일리", "url": "https://www4.edaily.co.kr/News/Read?mediaCodeNo=257&newsId=05126646645617512"}, {"outlet": "경향신문", "url": "https://www.khan.co.kr/article/202610282029005"}, {"outlet": "뉴스1", "url": "https://www.news1.kr/finance/general-finance/6335123"}, {"outlet": "아주경제", "url": "https://www4.ajunews.com/view/20261028154559868", "title": "우리은행·삼성전자, 삼성월렛 머니 해외 결제 확대", "date": "2026-10-28", "publishedAt": "2026-10-28T16:20:00+09:00"}, {"outlet": "SBS 뉴스", "url": "https://news.sbs.co.kr/news/endPage.do?news_id=N1008820457", "title": "삼성월렛 머니 해외 결제 210개국으로 확대", "date": "2026-10-29", "publishedAt": "2026-10-29T10:29:00+09:00"}, {"outlet": "미디어펜", "url": "https://www.mediapen.com/news/view/1133178", "title": "우리은행 삼성월렛 머니, 갤럭시폰으로 중국·전 세계 210개국 결제", "date": "2026-10-28", "publishedAt": "2026-10-28T15:00:00+09:00"}]}, {"eventId": "20261027-samsungwallet-wechat", "date": "2026-10-27", "publishedAt": "2026-10-27T09:10:49+09:00", "outlet": "뉴시스", "title": "삼성월렛 머니, 中 위챗페이 QR 결제 지원…해외 수수료도 0원", "url": "https://www.newsis.com/view/NISX20261027_0003842239", "category": "제휴·M&A", "importance": "high", "summary": "삼성전자·텐센트·우리은행이 중국 위챗페이 QR 결제와 해외 NFC 결제를 지원하기로 했다. 중국 결제수단은 이후 신용카드까지 확대할 계획이다.", "also": []}, {"eventId": "20261022-samsungwallet-3m", "date": "2026-10-22", "outlet": "뉴시스", "title": "결제할 때마다 즉시 적립…삼성월렛 머니, 1년 만에 300만명 넘었다", "url": "https://files.newsis.com/view/NISX20261022_0003835983", "category": "상품·서비스", "importance": "mid", "summary": "삼성월렛 머니·포인트 가입자가 출시 1년 만에 300만명을 넘었다. 삼성전자는 등급제, 해외 결제 적립과 신규 이용자 혜택을 추가했다.", "also": []}]}], "highlights": [{"company": "애플페이", "date": "2026-11-08", "text": "카카오뱅크와 토스뱅크가 연내 애플페이 도입을 추진하면서 현대카드 단독 구조가 바뀔 가능성이 커졌다.", "url": "https://www.hankyung.com/article/2026110832081"}, {"company": "카카오페이", "date": "2026-11-03", "text": "3분기 영업이익이 325억원으로 전년 대비 105% 증가했고 결제 거래액도 성장했다.", "url": "https://news.sbs.co.kr/news/endPagePrintPopup.do?news_id=N1008828700"}, {"company": "현대카드", "date": "2026-10-29", "text": "3분기 누적 순이익 2758억원과 영업이익 3665억원을 기록하며 성장세를 이어갔다.", "url": "https://www.news1.kr/finance/insurance-card/6336566"}, {"company": "삼성페이", "date": "2026-10-28", "text": "삼성월렛 머니의 해외 결제 지원이 210개국 마스터카드 가맹점과 중국 위챗페이로 확대됐다.", "url": "https://www.yna.co.kr/view/AKR20261028131400002"}, {"company": "신한카드", "date": "2026-10-27", "text": "사옥 매각 이익 반영으로 3분기 순이익이 2324억원으로 증가했지만 일회성 요인도 컸다.", "url": "https://www.news1.kr/finance/insurance-card/6333504"}]}
 </script>
 
 <script id="app-js">
@@ -1423,7 +235,7 @@ footer { color: var(--muted); font-size: 12px; }
   var CATS = ["실적·재무", "규제·정책", "상품·서비스", "제휴·M&A", "디지털·기술", "사고·리스크", "인사·조직", "사회공헌·기타"];
   var limit = data.limitPerCompany || 30;
   var companies = data.companies || [];
-  var state = { id: null, cat: "전체" };
+  var state = { view: "sources", id: null, cat: "전체" };
 
   function el(tag, cls, text) {
     var n = document.createElement(tag);
@@ -1437,9 +249,108 @@ footer { color: var(--muted); font-size: 12px; }
     if (!href) return el("span", cls, text);
     var a = el("a", cls, text);
     a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.setAttribute("aria-label", text + " (새 창에서 원문 열기)");
     return a;
   }
-  function byDate(a, b) { return (b.date || "").localeCompare(a.date || ""); }
+  function timeKey(a) {
+    var value = a.publishedAt || ((a.date || "") + "T00:00:00+09:00");
+    var timestamp = Date.parse(value);
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+  }
+  function byDate(a, b) {
+    return timeKey(b) - timeKey(a) ||
+      (a._companyOrder || 0) - (b._companyOrder || 0) ||
+      (a._articleOrder || 0) - (b._articleOrder || 0);
+  }
+  function whenText(a) {
+    if (a._sourceType === "관련 보도" && !a.date && !a.publishedAt) {
+      return "게시 시각 미확인" + (a._eventDate ? " · 사건 기준 " + a._eventDate : "");
+    }
+    if (!a.publishedAt) return a.date || "날짜 미상";
+    var d = new Date(a.publishedAt);
+    if (isNaN(d)) return a.date || "날짜 미상";
+    var parts = new Intl.DateTimeFormat("ko-KR", {
+      timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+    }).formatToParts(d);
+    var values = {};
+    parts.forEach(function (p) { values[p.type] = p.value; });
+    return values.year + "-" + values.month + "-" + values.day + " " + values.hour + ":" + values.minute + " KST";
+  }
+  function allArticles() {
+    var all = [];
+    companies.forEach(function (c, ci) {
+      (c.articles || []).forEach(function (a, ai) {
+        var row = Object.assign({}, a);
+        row._companyId = c.id; row._companyName = c.name; row._companyOrder = ci; row._articleOrder = ai;
+        all.push(row);
+      });
+    });
+    return all.sort(byDate);
+  }
+  function canonicalUrl(value) {
+    try {
+      var u = new URL(value);
+      ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "cooper", "plink", "autoplay", "test", "trc"].forEach(function (key) { u.searchParams.delete(key); });
+      u.hash = "";
+      return u.toString().replace(/\/$/, "");
+    } catch (e) { return value || ""; }
+  }
+  function sourceRows(companyId) {
+    var rows = [];
+    companies.forEach(function (c, ci) {
+      if (companyId && c.id !== companyId) return;
+      (c.articles || []).forEach(function (a, ai) {
+        var base = Object.assign({}, a, { _companyId: c.id, _companyName: c.name, _companyNames: [c.name], _companyOrder: ci, _articleOrder: ai, _sourceType: "대표 기사" });
+        rows.push(base);
+        (a.also || []).forEach(function (related, ri) {
+          rows.push(Object.assign({}, base, related, {
+            title: related.title || ((related.outlet || "관련 매체") + " 관련 보도 (제목 미확인)"),
+            date: related.date || "",
+            publishedAt: related.publishedAt || undefined,
+            summary: related.summary || "원문 제목·게시 시각을 확인하지 못해 사건 연결만 표시합니다. 정확한 내용은 원문에서 확인하세요.",
+            _eventDate: a.date,
+            _sourceType: "관련 보도",
+            _articleOrder: ai + ((ri + 1) / 100)
+          }));
+        });
+      });
+    });
+    var unique = new Map();
+    rows.forEach(function (row) {
+      var key = canonicalUrl(row.url);
+      if (!key) return;
+      if (!unique.has(key)) unique.set(key, row);
+      else {
+        var saved = unique.get(key);
+        if (saved._companyNames.indexOf(row._companyName) < 0) saved._companyNames.push(row._companyName);
+      }
+    });
+    return Array.from(unique.values()).sort(byDate);
+  }
+  function eventGroups() {
+    var groups = new Map();
+    allArticles().forEach(function (article) {
+      var key = article.eventId || canonicalUrl(article.url);
+      if (!groups.has(key)) groups.set(key, Object.assign({}, article, { _companyNames: [], _sourceUrls: new Set(), also: [] }));
+      var group = groups.get(key);
+      if (group._companyNames.indexOf(article._companyName) < 0) group._companyNames.push(article._companyName);
+      var primaryKey = canonicalUrl(article.url);
+      if (primaryKey) group._sourceUrls.add(primaryKey);
+      (article.also || []).forEach(function (related) {
+        var relatedKey = canonicalUrl(related.url);
+        if (relatedKey && !group._sourceUrls.has(relatedKey)) {
+          group._sourceUrls.add(relatedKey);
+          group.also.push(related);
+        }
+      });
+    });
+    return Array.from(groups.values()).map(function (group) {
+      group._sourceCount = group._sourceUrls.size;
+      delete group._sourceUrls;
+      return group;
+    }).sort(byDate);
+  }
   function outletsFor(list) {
     var names = new Set();
     list.forEach(function (a) {
@@ -1458,7 +369,7 @@ footer { color: var(--muted); font-size: 12px; }
   }
   function scoreText(score) {
     if (score.major === null) return "점수 미산정 (주요 언론사 기준 누락)";
-    return Math.min(score.major.length, 10) + "/10점 · 주요 언론사 " + score.major.length + "곳" + (score.major.length < 9 ? " (목표 9곳 미달)" : " (목표 달성)") + ": " + (score.major.join(", ") || "없음") + (score.other.length ? " · 기타 출처: " + score.other.join(", ") : "");
+    return Math.min(score.major.length, 10) + "/10점 · 주요 언론사 " + score.major.length + "곳" + (score.major.length < 6 ? " (기본 목표 6곳 미달)" : " (기본 목표 달성)") + ": " + (score.major.join(", ") || "없음") + (score.other.length ? " · 기타 출처: " + score.other.join(", ") : "");
   }
   function pick(list) {
     var all = list.slice().sort(byDate);
@@ -1473,14 +384,17 @@ footer { color: var(--muted); font-size: 12px; }
   var chips = {};
   function renderTop() {
     document.getElementById("page-title").textContent = data.title || "카드·간편결제 뉴스";
-    var displayed = companies.reduce(function (all, c) { return all.concat(pick(c.articles || [])); }, []);
+    var displayed = allArticles();
+    var sources = sourceRows();
     var events = new Set(displayed.filter(function (a) { return a.eventId; }).map(function (a) { return a.eventId; }));
     var eventsComplete = displayed.every(function (a) { return !!a.eventId; });
     var meta = document.getElementById("meta"); meta.textContent = "";
     var rows = [["기간", (data.period ? data.period.from + " ~ " + data.period.to : "-")],
       ["기준일", data.generatedAt || "-"],
-      ["고유 사건", eventsComplete ? events.size + "건" : "집계 불가 (사건 ID 누락)"],
-      ["회사별 표시", displayed.length + "건 · " + companies.length + "개 대상 · 최대 " + limit + "건"]];
+      ["고유 원문", sources.length + "건"],
+      ["대표 사건", eventsComplete ? events.size + "건" : "집계 불가 (사건 ID 누락)"],
+      ["회사 기사 레코드", displayed.length + "건 · " + companies.length + "개 대상 · 회사별 최대 " + limit + "건"]];
+    if (data.collectionStats) rows.push(["수집 검산", "관련 보도 " + (data.collectionStats.relatedCoverageLinks || 0) + "건 · 중복 제외 " + (data.collectionStats.duplicateLinksExcluded || 0) + "건"]);
     if (data.updatedAt) rows.push(["마지막 조회", data.updatedAt]);
     rows.forEach(function (p) {
       var s = el("span"); s.appendChild(document.createTextNode(p[0] + " ")); s.appendChild(el("b", "mono", p[1])); meta.appendChild(s);
@@ -1544,18 +458,18 @@ footer { color: var(--muted); font-size: 12px; }
     ["회사·서비스", "점수", "목표", "확인된 주요 언론사", "기타 출처"].forEach(function (label) { var th = el("th", null, label); th.scope = "col"; scoresHeading.appendChild(th); });
     scoresHead.appendChild(scoresHeading); scoresTable.appendChild(scoresHead); var scoresBody = el("tbody");
     companies.forEach(function (c) {
-      var n = Math.min((c.articles || []).length, limit);
-      var outletResult = outletScore(pick(c.articles || []));
+      var n = (c.articles || []).length;
+      var outletResult = outletScore((c.articles || []).slice().sort(byDate));
       var scoreRow = el("tr"); var companyCell = el("th", null, c.name); companyCell.scope = "row"; scoreRow.appendChild(companyCell);
       var major = outletResult.major;
       scoreRow.appendChild(el("td", "mono", major === null ? "미산정" : Math.min(major.length, 10) + "/10"));
-      scoreRow.appendChild(el("td", major === null ? "score-missing" : (major.length >= 9 ? "score-achieved" : "score-missing"), major === null ? "기준 누락" : (major.length >= 9 ? "달성" : "미달")));
+      scoreRow.appendChild(el("td", major === null ? "score-missing" : (major.length >= 6 ? "score-achieved" : "score-missing"), major === null ? "기준 누락" : (major.length >= 6 ? "달성" : "미달")));
       scoreRow.appendChild(el("td", null, major === null ? "기준 확인 필요" : (major.join(", ") || "없음")));
       scoreRow.appendChild(el("td", null, outletResult.other.join(", ") || "—")); scoresBody.appendChild(scoreRow);
       var b = el("button", "chip" + (n ? "" : " empty"));
       b.type = "button"; b.id = "chip-" + c.id;
       b.appendChild(el("span", null, c.name));
-      b.appendChild(el("span", "n", n + "/" + limit));
+      b.appendChild(el("span", "n", n + "건"));
       b.addEventListener("click", function () { select(c.id, true); });
       document.getElementById(c.group === "pay" ? "chips-pay" : "chips-card").appendChild(b);
       chips[c.id] = b;
@@ -1574,15 +488,28 @@ footer { color: var(--muted); font-size: 12px; }
   }
 
   function render() {
+    var isSources = state.view === "sources";
+    var isEvents = state.view === "events";
+    var isCompany = state.view === "company";
     var c = companies.filter(function (x) { return x.id === state.id; })[0];
-    if (!c) return;
-    Object.keys(chips).forEach(function (k) { chips[k].setAttribute("aria-pressed", String(k === c.id)); });
-    var arts = pick(c.articles || []);
-    document.getElementById("co-name").textContent = c.name;
-    document.getElementById("co-count").textContent = arts.length + " / " + limit + "건";
-    document.getElementById("co-outlet-score").textContent = "매체 커버리지 " + scoreText(outletScore(arts));
+    if (isCompany && !c) return;
+    Object.keys(chips).forEach(function (k) { chips[k].setAttribute("aria-pressed", String(isCompany && k === c.id)); });
+    document.getElementById("view-all").setAttribute("aria-pressed", String(isSources));
+    document.getElementById("view-events").setAttribute("aria-pressed", String(isEvents));
+    document.getElementById("view-company").setAttribute("aria-pressed", String(isCompany));
+    document.getElementById("company-picker").hidden = !isCompany;
+    document.getElementById("view-help").textContent = isSources ?
+      "대표 기사와 관련 보도를 URL 중복 제거 후 최신순으로 보여줍니다." : (isEvents ?
+      "같은 사건의 여러 보도와 회사를 하나로 묶어 보여줍니다." :
+      "회사를 선택하면 해당 회사와 연결된 모든 원문을 최신순으로 보여줍니다.");
+    var arts = isSources ? sourceRows() : (isEvents ? eventGroups() : sourceRows(c.id));
+    document.getElementById("co-name").textContent = isSources ? "전체 원문 최신순" : (isEvents ? "사건별 뉴스 묶음" : c.name);
+    document.getElementById("co-count").textContent = arts.length + "건";
+    document.getElementById("co-outlet-score").textContent = isCompany ? "매체 커버리지 " + scoreText(outletScore(c.articles || [])) : (isEvents ? "검증된 원문을 사건 단위로 묶었습니다." : "중복 제거된 검증 원문 전체입니다.");
     var dg = document.getElementById("co-digest");
-    dg.textContent = [c.digest, c.searchStatus || (!arts.length ? "확인된 기사 없음. 검색 범위와 접근 여부를 확인하세요." : "")].filter(Boolean).join(" · "); dg.hidden = !dg.textContent;
+    dg.textContent = !isCompany ? "최신 뉴스가 위에 표시됩니다. 기사 시각이 없으면 같은 날짜 안에서는 수집 데이터의 안정적인 순서를 유지합니다." :
+      [c.digest, c.searchStatus || (!arts.length ? "확인된 기사 없음. 검색 범위와 접근 여부를 확인하세요." : "")].filter(Boolean).join(" · ");
+    dg.hidden = !dg.textContent;
 
     var cats = ["전체"];
     arts.forEach(function (a) { if (a.category && cats.indexOf(a.category) < 0) cats.push(a.category); });
@@ -1593,21 +520,25 @@ footer { color: var(--muted); font-size: 12px; }
     var list = document.getElementById("list"); list.textContent = "";
     var shown = arts.filter(function (a) { return state.cat === "전체" || a.category === state.cat; });
     if (!shown.length) {
-      list.appendChild(el("li", "none", arts.length ? "조건에 맞는 기사 없음" : (c.searchStatus || "확인된 기사 없음")));
+      list.appendChild(el("li", "none", arts.length ? "조건에 맞는 기사 없음" : (!isCompany ? "확인된 전체 기사가 없습니다." : (c.searchStatus || "확인된 기사 없음"))));
       return;
     }
     shown.forEach(function (a) {
       var li = el("li", "item");
-      li.appendChild(el("span", "date", a.date || "날짜 미상"));
+      li.appendChild(el("span", "date", whenText(a)));
       li.appendChild(el("span", "outlet", a.outlet || "언론사 미상"));
       var body = el("div", "body");
       body.appendChild(link(a.title || "(제목 없음)", a.url, "title"));
       if (a.summary) body.appendChild(el("p", "summary", a.summary));
       var tags = el("div", "tags");
+      if (a._companyNames && a._companyNames.length) a._companyNames.forEach(function (name) { tags.appendChild(el("span", "company-tag", name)); });
+      else if (!isCompany && a._companyName) tags.appendChild(el("span", "company-tag", a._companyName));
+      if (a._sourceType) tags.appendChild(el("span", "cat", a._sourceType));
+      if (isEvents && a._sourceCount) tags.appendChild(el("span", "cat", "원문 " + a._sourceCount + "건"));
       tags.appendChild(el("span", "imp " + (a.importance || "low"), "중요도 " + (IMP[a.importance] || "낮음")));
       if (a.category) tags.appendChild(el("span", "cat", a.category));
       if (a.auto) tags.appendChild(el("span", "auto", "자동 수집"));
-      if (a.also && a.also.length) {
+      if (isEvents && a.also && a.also.length) {
         var al = el("span", "also", "관련 보도: ");
         a.also.forEach(function (o, i) {
           if (i) al.appendChild(document.createTextNode(", "));
@@ -1622,9 +553,20 @@ footer { color: var(--muted); font-size: 12px; }
   }
 
   function select(id, remember) {
-    state.id = id; state.cat = "전체"; render();
+    state.view = "company"; state.id = id; state.cat = "전체"; render();
     if (remember) { try { localStorage.setItem("cpn-company", id); } catch (e) {} }
   }
+
+  function setView(view, remember) {
+    state.view = ["sources", "events", "company"].indexOf(view) >= 0 ? view : "sources";
+    state.cat = "전체";
+    render();
+    if (remember) { try { localStorage.setItem("cpn-view", state.view); } catch (e) {} }
+  }
+
+  document.getElementById("view-all").addEventListener("click", function () { setView("sources", true); });
+  document.getElementById("view-events").addEventListener("click", function () { setView("events", true); });
+  document.getElementById("view-company").addEventListener("click", function () { setView("company", true); });
 
   renderTop();
   var start = (location.hash || "").slice(1);
@@ -1633,8 +575,14 @@ footer { color: var(--muted); font-size: 12px; }
     var firstWith = companies.filter(function (c) { return (c.articles || []).length; })[0] || companies[0];
     start = firstWith ? firstWith.id : "";
   }
-  if (start) select(start, false);
+  if (start) state.id = start;
+  try {
+    var storedView = localStorage.getItem("cpn-view");
+    state.view = ["sources", "events", "company"].indexOf(storedView) >= 0 ? storedView : "sources";
+  } catch (e) { state.view = "sources"; }
+  render();
 })();
 </script>
 </body>
 </html>
+
